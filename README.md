@@ -75,6 +75,117 @@ After bootstrap, use:
 
 `rebuild.sh` auto-detects macOS versus Linux and applies the matching target.
 
+## Ubuntu 26.04 laptop setup
+
+These steps are for a normal Ubuntu 26.04 laptop, run from that laptop's terminal or over SSH.
+Do not run the bootstrap as root.
+
+### 1. Install bootstrap prerequisites
+
+```sh
+sudo apt update
+sudo apt install -y curl git xz-utils ca-certificates
+```
+
+### 2. Use the expected username
+
+This repo currently has a single shared user value:
+
+```nix
+user = "vpnuser";
+```
+
+Best path: make the Ubuntu account username `vpnuser` too.
+Then the Mac mini and Ubuntu laptop can use the same committed flake with no per-machine edits.
+
+If the Ubuntu username is different, `./bootstrap.sh` will offer to rewrite `flake.nix`.
+That works for the laptop, but it also changes the macOS target username because this repo intentionally has one user variable.
+In that case, either commit that username change for all machines or add a per-host user split before using the repo on machines with different account names.
+
+### 3. Clone and bootstrap
+
+```sh
+git clone https://github.com/TheLoop705/dotfiles.git ~/dotfiles
+cd ~/dotfiles
+./bootstrap.sh
+```
+
+On Ubuntu, bootstrap will:
+
+1. Install Determinate Nix if it is missing.
+2. Symlink this checkout to `~/.dotfiles`.
+3. Apply the matching Home Manager target.
+
+For a typical Intel/AMD Ubuntu laptop, the target is:
+
+```sh
+.#vpnuser@linux-x86_64
+```
+
+For an ARM64 Ubuntu laptop, the target is:
+
+```sh
+.#vpnuser@linux-aarch64
+```
+
+### 4. Start using the shell
+
+Home Manager installs and configures zsh, but Ubuntu may still log you into bash by default.
+For the current session:
+
+```sh
+exec zsh -l
+```
+
+To make zsh permanent for future SSH and terminal sessions:
+
+```sh
+sudo apt install -y zsh
+chsh -s /usr/bin/zsh
+```
+
+Then log out and back in.
+
+### 5. Verify the laptop
+
+```sh
+command -v nvim tmux rg fd fzf lazygit starship
+nix build '.#homeConfigurations."vpnuser@linux-x86_64".activationPackage' --dry-run
+```
+
+If the laptop is ARM64, use:
+
+```sh
+nix build '.#homeConfigurations."vpnuser@linux-aarch64".activationPackage' --dry-run
+```
+
+Useful workflow checks:
+
+```sh
+t                 # attach/create the main tmux session
+nvim              # opens the repo-managed Neovim config
+./rebuild.sh      # re-apply after editing Nix/Home Manager files
+```
+
+### 6. Updating later
+
+```sh
+cd ~/.dotfiles
+git pull
+./rebuild.sh
+```
+
+Home Manager backs up replaced files with the `hm-backup` suffix.
+For example, if an existing zsh config was in the way, look for `~/.zshrc.hm-backup`.
+
+### Ubuntu notes
+
+- Ubuntu does not use `configuration.nix`; that file is macOS-only.
+- Homebrew packages and casks are macOS-only.
+- WezTerm config is linked on Ubuntu, but the WezTerm app itself is not installed by this repo on Ubuntu yet.
+  Install WezTerm separately if you want to use it as the local laptop terminal.
+- If you only SSH into the Mac mini from the Ubuntu laptop, the Ubuntu terminal app does not matter much; tmux, zsh, nvim, and the other commands run on the remote Mac.
+
 ## Validate without applying
 
 After Nix is installed:
