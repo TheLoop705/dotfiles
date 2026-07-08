@@ -1,4 +1,4 @@
-{ user, ... }:
+{ lib, user, ... }:
 
 {
   # Determinate already manages the Nix daemon, so nix-darwin shouldn't.
@@ -25,6 +25,26 @@
     finder.CreateDesktop = false;          # clean desktop
     trackpad.Clicking = true;              # tap to click
   };
+  system.activationScripts.postActivation.text = lib.mkAfter ''
+    zsh_site=/opt/homebrew/share/zsh/site-functions
+    if [ -d "$zsh_site" ]; then
+      chmod go-w /opt/homebrew /opt/homebrew/share
+
+      # Homebrew migration left this symlink broken on this machine.
+      if [ -L "$zsh_site/_brew" ] && [ ! -e "$zsh_site/_brew" ]; then
+        rm -f "$zsh_site/_brew"
+      fi
+
+      for name in docker docker-compose; do
+        src="/Applications/Docker.app/Contents/Resources/etc/$name.zsh-completion"
+        dest="$zsh_site/_$name"
+        if [ -f "$src" ]; then
+          rm -f "$dest"
+          install -m 0644 "$src" "$dest"
+        fi
+      done
+    fi
+  '';
   nix-homebrew = {
     enable = true;
     inherit user;
