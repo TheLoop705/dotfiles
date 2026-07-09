@@ -233,9 +233,45 @@ Run `./rebuild.sh` when changing Nix package lists, system settings, or Home Man
 ## Notes
 
 - Secrets, local databases, app caches, and machine-specific auth files are intentionally not tracked.
+- `~/.profile` is also intentionally not tracked (not even referenced from `home/`): it holds laptop-specific aliases and SSH/bastion helpers that only make sense on one exact machine. `home.nix`'s `programs.zsh.initContent` sources `~/.profile` automatically when it exists, so it still loads on every shell without ever being committed.
 - `~/.claude/settings.local.json` is globally ignored.
 - The existing Git identity is not managed here; keep using `git config --global user.name` and `git config --global user.email`.
 - The first `nvim` launch bootstraps lazy.nvim plugins from GitHub.
+
+## Manual steps for this laptop (2026-07-09 setup)
+
+Everything else in this README is already applied on this Ubuntu laptop as of today. What's left is either genuinely manual (needs an interactive password) or worth a deliberate look rather than a silent overwrite:
+
+1. **Make zsh your system-wide login shell (optional).** WezTerm already launches zsh directly for every pane/tab via `home/.config/wezterm/wezterm.lua`, so this isn't required for day-to-day use — but if you also want zsh on a plain TTY or over SSH:
+
+   ```sh
+   chsh -s "$(command -v zsh)"
+   ```
+
+   This needs your account password interactively, so it can't be scripted. Log out and back in afterward.
+
+2. **`ydotool.service` is inactive.** It exhausted its restart attempts earlier today — unrelated to this dotfiles work, but the Whisper dictation daemon depends on it to type out transcribed text. If Ctrl+Shift+Space stops producing text, check `journalctl --user -u ydotool -n 50 --no-pager` and try `systemctl --user restart ydotool.service`.
+
+3. **`~/.config/git` was root-owned on this account** (unclear why). Its one file already matched what this repo wanted, so activation skipped it harmlessly instead of erroring, but it isn't a proper Home Manager symlink like the others yet. To fully tidy it up: `sudo chown -R "$(whoami):$(whoami)" ~/.config/git`, then re-run `./rebuild.sh`.
+
+4. **Review the merged Claude/Codex config.** `home/.claude/settings.json` and `home/AGENTS.md` now combine this laptop's prior local setup (an `env` block routing to a local Ollama server, `model: haiku`, the sandbox access-rules text) with the repo's fuller permissions/plugins list — including `defaultMode: bypassPermissions`, which was already in this repo before today and was kept intentionally. If anything about the merged behavior surprises you, the pre-merge versions are still on disk:
+   - `~/.claude/settings.json.hm-backup`
+   - `~/.claude/CLAUDE.md.hm-backup`
+   - `~/.codex/AGENTS.md.hm-backup`
+   - `~/.config/gh/config.yml.hm-backup`
+   - `~/.config/starship.toml.hm-backup`
+
+5. **Backups from the original, pre-Home-Manager local setup** are also still on disk, safe to delete once you've confirmed everything works:
+   - `~/.zshrc.backup-before-dotfiles.20260708142711`
+   - `~/.profile.backup-before-dotfiles.20260708142711`
+   - `~/.codex/config.toml.backup-before-dotfiles.20260708142711`
+
+6. **After a reboot, confirm:**
+   - Ctrl+Alt+T opens a WezTerm window running zsh, with autosuggestions and syntax highlighting active.
+   - The starship prompt renders.
+   - `tmux` (or the `t` alias) starts with prefix `Ctrl+a`.
+   - Ctrl+Shift+Space still triggers dictation.
+   - `nvim` opens the lazy.nvim-managed config.
 
 ## License
 
