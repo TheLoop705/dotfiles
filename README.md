@@ -37,13 +37,13 @@ The flake exposes these targets:
 .#mac
 
 # Ubuntu/Linux x86_64
-.#vpnuser@linux-x86_64
+.#sultan@linux-x86_64
 
 # Ubuntu/Linux ARM64
-.#vpnuser@linux-aarch64
+.#sultan@linux-aarch64
 ```
 
-Change the single `user = "vpnuser";` line in `flake.nix` before using this repo on machines where the username differs.
+`flake.nix` uses a per-host username: `macUser` for the Darwin target, `linuxUser` for the Linux targets. Change whichever one applies before using this repo on a machine with a different account name — editing one never affects the other.
 
 ## Fresh machine setup
 
@@ -87,20 +87,17 @@ sudo apt update
 sudo apt install -y curl git xz-utils ca-certificates
 ```
 
-### 2. Use the expected username
+### 2. Username is already per-host
 
-This repo currently has a single shared user value:
+`flake.nix` keeps a separate username per platform, so editing one never touches the other:
 
 ```nix
-user = "vpnuser";
+macUser = "vpnuser";
+linuxUser = "sultan";
 ```
 
-Best path: make the Ubuntu account username `vpnuser` too.
-Then the Mac mini and Ubuntu laptop can use the same committed flake with no per-machine edits.
-
-If the Ubuntu username is different, `./bootstrap.sh` will offer to rewrite `flake.nix`.
-That works for the laptop, but it also changes the macOS target username because this repo intentionally has one user variable.
-In that case, either commit that username change for all machines or add a per-host user split before using the repo on machines with different account names.
+This laptop's account is already `sultan`, matching `linuxUser`, so there's nothing to change here.
+If you ever use this repo on a different Ubuntu/Linux account, either edit `linuxUser` in `flake.nix` yourself or let `./bootstrap.sh` do it — it checks `linuxUser` against the current account (`macUser` on macOS) and offers to rewrite just that line.
 
 ### 3. Clone and bootstrap
 
@@ -119,13 +116,13 @@ On Ubuntu, bootstrap will:
 For a typical Intel/AMD Ubuntu laptop, the target is:
 
 ```sh
-.#vpnuser@linux-x86_64
+.#sultan@linux-x86_64
 ```
 
 For an ARM64 Ubuntu laptop, the target is:
 
 ```sh
-.#vpnuser@linux-aarch64
+.#sultan@linux-aarch64
 ```
 
 ### 4. Start using the shell
@@ -150,13 +147,13 @@ Then log out and back in.
 
 ```sh
 command -v nvim tmux rg fd fzf lazygit starship
-nix build '.#homeConfigurations."vpnuser@linux-x86_64".activationPackage' --dry-run
+nix build '.#homeConfigurations."sultan@linux-x86_64".activationPackage' --dry-run
 ```
 
 If the laptop is ARM64, use:
 
 ```sh
-nix build '.#homeConfigurations."vpnuser@linux-aarch64".activationPackage' --dry-run
+nix build '.#homeConfigurations."sultan@linux-aarch64".activationPackage' --dry-run
 ```
 
 Useful workflow checks:
@@ -193,13 +190,13 @@ After Nix is installed:
 ```sh
 nix flake check --no-build
 nix build .#darwinConfigurations.mac.system --dry-run
-nix build '.#homeConfigurations."vpnuser@linux-x86_64".activationPackage' --dry-run
+nix build '.#homeConfigurations."sultan@linux-x86_64".activationPackage' --dry-run
 ```
 
 For ARM64 Linux, use:
 
 ```sh
-nix build '.#homeConfigurations."vpnuser@linux-aarch64".activationPackage' --dry-run
+nix build '.#homeConfigurations."sultan@linux-aarch64".activationPackage' --dry-run
 ```
 
 ## Homebrew warning

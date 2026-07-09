@@ -35,6 +35,10 @@ config.keys = {
 
 if is_darwin then
   config.macos_window_background_blur = 50
+else
+  -- Always launch zsh as a login shell on Linux, regardless of the
+  -- account's default login shell in /etc/passwd.
+  config.default_prog = { "/usr/bin/zsh", "-l" }
 end
 
 return config

@@ -16,15 +16,19 @@
 
   outputs = inputs@{ self, nix-darwin, nix-homebrew, home-manager, nixpkgs, nixpkgs-linux }:
     let
-      # The one username line to change if this is not your account.
-      # bootstrap.sh offers to rewrite this for the current machine.
-      user = "vpnuser";
+      # Per-host usernames. Each machine gets its own value here instead of a
+      # single shared variable, so changing one machine's account never
+      # touches another machine's target. Add a new line here (and to
+      # linuxSystems below for a new architecture) instead of editing the
+      # structure of this file.
+      macUser = "vpnuser";
+      linuxUser = "sultan";
 
       linuxSystems = [ "x86_64-linux" "aarch64-linux" ];
 
       linuxTargetName = system:
-        if system == "x86_64-linux" then "${user}@linux-x86_64"
-        else if system == "aarch64-linux" then "${user}@linux-aarch64"
+        if system == "x86_64-linux" then "${linuxUser}@linux-x86_64"
+        else if system == "aarch64-linux" then "${linuxUser}@linux-aarch64"
         else throw "Unsupported Linux system: ${system}";
 
       mkLinuxHome = system:
@@ -34,8 +38,8 @@
             config.allowUnfree = true;
           };
           extraSpecialArgs = {
-            inherit user;
-            homeDirectory = "/home/${user}";
+            user = linuxUser;
+            homeDirectory = "/home/${linuxUser}";
           };
           modules = [
             ./home.nix
@@ -46,8 +50,8 @@
       darwinConfigurations."mac" = nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
         specialArgs = {
-          inherit user;
-          homeDirectory = "/Users/${user}";
+          user = macUser;
+          homeDirectory = "/Users/${macUser}";
         };
         modules = [
           ./configuration.nix
@@ -58,10 +62,10 @@
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "hm-backup";
             home-manager.extraSpecialArgs = {
-              inherit user;
-              homeDirectory = "/Users/${user}";
+              user = macUser;
+              homeDirectory = "/Users/${macUser}";
             };
-            home-manager.users.${user} = import ./home.nix;
+            home-manager.users.${macUser} = import ./home.nix;
           }
         ];
       };

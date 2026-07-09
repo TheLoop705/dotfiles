@@ -28,11 +28,14 @@ in
   fonts.fontconfig.enable = true;
   home.sessionVariables = {
     EDITOR = "nvim";
+    VISUAL = "nvim";
     BUN_INSTALL = "$HOME/.bun";
+    KUBECONFIG = "$HOME/.kube/config";
   };
   home.sessionPath = [
     "$HOME/.local/bin"
     "$HOME/.bun/bin"
+    "$HOME/.opencode/bin"
   ];
 
   programs.zsh = {
@@ -40,6 +43,14 @@ in
     enableCompletion = true;
     autosuggestion.enable = true;      # ghost text from history
     syntaxHighlighting.enable = true;  # commands turn green when valid
+    history = {
+      size = 100000;
+      save = 100000;
+      path = "$HOME/.zsh_history";
+      ignoreDups = true;
+      ignoreSpace = true;
+      share = true;
+    };
     initContent = ''
       bindkey '^f' autosuggest-accept
 
@@ -70,6 +81,26 @@ in
       bindkey '^[[F' end-of-line
       bindkey '^[[1~' beginning-of-line
       bindkey '^[[4~' end-of-line
+
+      zstyle ':completion:*' menu select
+      zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+      zstyle ':completion:*' list-colors "''${(s.:.)LS_COLORS}"
+
+      command -v kubectl >/dev/null 2>&1 && source <(kubectl completion zsh)
+      command -v podman >/dev/null 2>&1 && source <(podman completion zsh)
+
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+
+      if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
+        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+      fi
+
+      # Machine-specific profile: aliases/functions that only make sense on
+      # this laptop. Deliberately not tracked in this repo.
+      if [ -f "$HOME/.profile" ]; then
+        source "$HOME/.profile"
+      fi
     '';
     shellAliases = {
       ".." = "cd ..";
@@ -84,6 +115,9 @@ in
       v = "nvim";
       cc = "claude --dangerously-skip-permissions";
       co = "codex --full-auto";
+      ll = "ls -alF";
+      la = "ls -A";
+      l = "ls -CF";
     };
   };
 

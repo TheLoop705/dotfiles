@@ -39,8 +39,8 @@ switch_target() {
 
 rewrite_flake_user() {
   case "$OS" in
-    Darwin) sed -i '' -E "s/^([[:space:]]*user = \")[^\"]+(\";.*)/\1${REAL_USER}\2/" "$DIR/flake.nix" ;;
-    Linux) sed -i -E "s/^([[:space:]]*user = \")[^\"]+(\";.*)/\1${REAL_USER}\2/" "$DIR/flake.nix" ;;
+    Darwin) sed -i '' -E "s/^([[:space:]]*${FLAKE_USER_VAR} = \")[^\"]+(\";.*)/\1${REAL_USER}\2/" "$DIR/flake.nix" ;;
+    Linux) sed -i -E "s/^([[:space:]]*${FLAKE_USER_VAR} = \")[^\"]+(\";.*)/\1${REAL_USER}\2/" "$DIR/flake.nix" ;;
   esac
 }
 
@@ -63,23 +63,27 @@ echo "==> Step 3: personalize the configured username"
 # Do this before any sudo call: sudo resets $USER to root, so whoami has to run
 # as the real interactive user first.
 REAL_USER="$(whoami)"
-FLAKE_USER="$(sed -nE 's/^[[:space:]]*user = "([^"]+)";.*/\1/p' "$DIR/flake.nix" | head -n1)"
+case "$OS" in
+  Darwin) FLAKE_USER_VAR="macUser" ;;
+  Linux) FLAKE_USER_VAR="linuxUser" ;;
+esac
+FLAKE_USER="$(sed -nE "s/^[[:space:]]*${FLAKE_USER_VAR} = \"([^\"]+)\";.*/\1/p" "$DIR/flake.nix" | head -n1)"
 if [ -z "$FLAKE_USER" ]; then
-  echo "    Could not find the single \"user = \" line in flake.nix."
+  echo "    Could not find the \"$FLAKE_USER_VAR = \" line in flake.nix."
   echo "    Edit flake.nix yourself before continuing."
   exit 1
 elif [ "$FLAKE_USER" != "$REAL_USER" ]; then
-  echo "    flake.nix is configured for user \"$FLAKE_USER\", but you are \"$REAL_USER\"."
-  read -r -p "    Rewrite flake.nix's \"user = \" line to \"$REAL_USER\"? [y/N] " REPLY
+  echo "    flake.nix's $FLAKE_USER_VAR is \"$FLAKE_USER\", but you are \"$REAL_USER\"."
+  read -r -p "    Rewrite flake.nix's \"$FLAKE_USER_VAR = \" line to \"$REAL_USER\"? [y/N] " REPLY
   if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
     rewrite_flake_user
     echo "    Updated. Review the change with: git diff flake.nix"
   else
-    echo "    Skipped. Edit the single \"user = \" line in flake.nix yourself before continuing."
+    echo "    Skipped. Edit flake.nix's \"$FLAKE_USER_VAR = \" line yourself before continuing."
     exit 1
   fi
 else
-  echo "    flake.nix already matches \"$REAL_USER\", nothing to do."
+  echo "    flake.nix's $FLAKE_USER_VAR already matches \"$REAL_USER\", nothing to do."
 fi
 
 TARGET="$(switch_target)"
