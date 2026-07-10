@@ -23,6 +23,9 @@
       # structure of this file.
       macUser = "vpnuser";
       linuxUser = "sultan";
+      # WSL is a separate target so its local account can differ from the
+      # regular Ubuntu machine without rewriting that machine's config.
+      wslUser = "ubuntu";
 
       linuxSystems = [ "x86_64-linux" "aarch64-linux" ];
 
@@ -31,15 +34,20 @@
         else if system == "aarch64-linux" then "${linuxUser}@linux-aarch64"
         else throw "Unsupported Linux system: ${system}";
 
-      mkLinuxHome = system:
+      wslTargetName = system:
+        if system == "x86_64-linux" then "${wslUser}@wsl-x86_64"
+        else if system == "aarch64-linux" then "${wslUser}@wsl-aarch64"
+        else throw "Unsupported WSL system: ${system}";
+
+      mkLinuxHome = user: system:
         home-manager.lib.homeManagerConfiguration {
           pkgs = import nixpkgs-linux {
             inherit system;
             config.allowUnfree = true;
           };
           extraSpecialArgs = {
-            user = linuxUser;
-            homeDirectory = "/home/${linuxUser}";
+            inherit user;
+            homeDirectory = "/home/${user}";
           };
           modules = [
             ./home.nix
@@ -70,11 +78,19 @@
         ];
       };
 
-      homeConfigurations = builtins.listToAttrs (map
-        (system: {
-          name = linuxTargetName system;
-          value = mkLinuxHome system;
-        })
-        linuxSystems);
+      homeConfigurations = builtins.listToAttrs (
+        (map
+          (system: {
+            name = linuxTargetName system;
+            value = mkLinuxHome linuxUser system;
+          })
+          linuxSystems)
+        ++ (map
+          (system: {
+            name = wslTargetName system;
+            value = mkLinuxHome wslUser system;
+          })
+          linuxSystems)
+      );
     };
 }

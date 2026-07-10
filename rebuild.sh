@@ -2,6 +2,10 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
+is_wsl() {
+  [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qiE '(microsoft|wsl)' /proc/sys/kernel/osrelease 2>/dev/null
+}
+
 if [ -r /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]; then
   # shellcheck disable=SC1091
   . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
@@ -32,7 +36,12 @@ case "$(uname -s)" in
         exit 1
         ;;
     esac
-    TARGET="${DOTFILES_HOME_TARGET:-$(whoami)@linux-$ARCH}"
+    if is_wsl; then
+      DEFAULT_TARGET="$(whoami)@wsl-$ARCH"
+    else
+      DEFAULT_TARGET="$(whoami)@linux-$ARCH"
+    fi
+    TARGET="${DOTFILES_HOME_TARGET:-$DEFAULT_TARGET}"
     if command -v home-manager >/dev/null 2>&1; then
       exec home-manager switch -b hm-backup --flake "$HOME/.dotfiles#$TARGET"
     fi
