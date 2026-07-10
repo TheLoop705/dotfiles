@@ -162,4 +162,15 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
   home.file.".config/opencode/AGENTS.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
+
+  # Standalone Home Manager on non-NixOS Linux can't reach into the systemd
+  # user manager's own environment the way it does on real NixOS, so
+  # systemd --user services (like the dictation daemon) don't see
+  # ~/.nix-profile/bin in PATH and fail to find Nix-installed tools (wtype,
+  # etc) even though an interactive shell does. Takes effect on next login.
+  xdg.configFile."environment.d/50-nix-profile-path.conf" = lib.mkIf pkgs.stdenv.isLinux {
+    text = ''
+      PATH=${homeDirectory}/.nix-profile/bin:/nix/var/nix/profiles/default/bin:''${PATH}
+    '';
+  };
 }
