@@ -57,6 +57,16 @@ else
   -- protocol error and kills the whole process. Drop to no decorations on
   -- Linux; Mac mini keeps RESIZE since it isn't affected by this bug.
   config.window_decorations = "NONE"
+
+  -- The Whisper dictation daemon grabs its global hotkey via X11 (it's
+  -- linked against libX11/libxcb, through XWayland). Under native Wayland,
+  -- X11 grabs structurally cannot see key events while a native Wayland
+  -- window has focus -- that's a Wayland security boundary, not a bug in
+  -- either app. Forcing WezTerm through the X11/XWayland backend makes it
+  -- a window the dictation daemon's grab can actually see. Trade-off: text
+  -- may render very slightly softer on this machine's fractional-scaled
+  -- displays, since XWayland scales less precisely than native Wayland.
+  config.enable_wayland = false
 end
 
 return config
