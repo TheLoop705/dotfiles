@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminal Shortcuts — sultan@Ubuntu 26.04</title>
+<style>
+  :root {
+    --bg: #232136;
+    --bg-card: #2a273f;
+    --bg-hover: #393552;
+    --border: #3d3a5c;
+    --text: #e0def4;
+    --text-muted: #908caa;
+    --accent: #c4a7e7;
+    --accent2: #9ccfd8;
+    --gold: #f6c177;
+    --warn: #eb6f92;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2.5rem 1.5rem 5rem;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 1.75rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 0.3rem; color: var(--text); }
+  header p { color: var(--text-muted); margin: 0; font-size: 0.95rem; }
+
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1.5rem 0 2rem;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+  }
+  .flow .step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.4rem 0.8rem;
+    color: var(--text);
+  }
+  .flow .arrow { color: var(--accent2); }
+
+  .callout {
+    background: linear-gradient(135deg, rgba(235,111,146,0.12), rgba(235,111,146,0.04));
+    border: 1px solid rgba(235,111,146,0.4);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+    margin-bottom: 2rem;
+    font-size: 0.92rem;
+  }
+  .callout strong { color: var(--warn); }
+
+  #search {
+    display: block;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto 2.5rem;
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  #search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #search::placeholder { color: var(--text-muted); }
+
+  .tool-section { margin-bottom: 3rem; }
+  .tool-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-size: 1.4rem;
+    color: var(--accent);
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.2rem;
+  }
+  .tool-title .sub { font-size: 0.85rem; color: var(--text-muted); font-weight: normal; }
+
+  .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+  .group {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+  }
+  .group h3 {
+    margin: 0 0 0.7rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent2);
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  .row:first-of-type { border-top: none; }
+  .row.hidden { display: none; }
+  .keys { white-space: nowrap; flex-shrink: 0; }
+  .desc { color: var(--text-muted); font-size: 0.88rem; text-align: right; }
+
+  kbd {
+    display: inline-block;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    padding: 0.12rem 0.5rem;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.82rem;
+    color: var(--text);
+  }
+  .plus { color: var(--text-muted); margin: 0 0.15rem; font-size: 0.8rem; }
+
+  .footnote {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.8rem;
+    font-style: italic;
+  }
+
+  footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    margin-top: 3rem;
+  }
+  footer code { color: var(--accent2); }
+
+  @media print {
+    body { padding: 0.5rem; }
+    #search { display: none; }
+    .group { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Terminal Shortcuts</h1>
+    <p>WezTerm &middot; tmux &middot; zsh &middot; Neovim — sultan@Ubuntu 26.04, from <code>~/.dotfiles</code></p>
+  </header>
+
+  <div class="flow">
+    <span class="step">Ctrl+Alt+T</span>
+    <span class="arrow">&rarr;</span>
+    <span class="step">WezTerm</span>
+    <span class="arrow">&rarr;</span>
+    <span class="step">zsh</span>
+    <span class="arrow">&rarr;</span>
+    <span class="step"><kbd>t</kbd> &rarr; tmux</span>
+    <span class="arrow">/</span>
+    <span class="step"><kbd>v</kbd> or <kbd>nvim</kbd> &rarr; Neovim</span>
+  </div>
+
+  <div class="callout">
+    <strong>Ctrl+Shift+Space is reserved system-wide</strong> for the Whisper dictation daemon (start/stop recording, works no matter what has focus). It is not a WezTerm, tmux, zsh, or Neovim shortcut — WezTerm explicitly disables its default QuickSelect binding on this combo and runs through XWayland so the daemon's global grab can see it.
+  </div>
+
+  <input type="text" id="search" placeholder="Filter shortcuts&hellip;">
+
+  <!-- ============ SYSTEM ============ -->
+  <section class="tool-section">
+    <div class="tool-title">System <span class="sub">GNOME keybindings</span></div>
+    <div class="groups">
+      <div class="group">
+        <h3>Global</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>T</kbd></span><span class="desc">Open a new WezTerm window</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>Space</kbd></span><span class="desc">Whisper dictation: start/stop recording, anywhere</span></div>
+        <div class="row"><span class="keys"><kbd>Shift</kbd><span class="plus">+</span><kbd>Print</kbd></span><span class="desc">ksnip screenshot tool</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ WEZTERM ============ -->
+  <section class="tool-section">
+    <div class="tool-title">WezTerm <span class="sub">terminal emulator</span></div>
+    <div class="groups">
+
+      <div class="group">
+        <h3>Tabs</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>T</kbd></span><span class="desc">New tab</span></div>
+        <div class="row"><span class="keys"><kbd>Super</kbd><span class="plus">+</span><kbd>T</kbd></span><span class="desc">New tab</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>W</kbd></span><span class="desc">Close tab (confirm)</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Tab</kbd></span><span class="desc">Next tab</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>Tab</kbd></span><span class="desc">Previous tab</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>1</kbd>&ndash;<kbd>9</kbd></span><span class="desc">Jump to tab N (9 = last)</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>PageUp/Dn</kbd></span><span class="desc">Move current tab left/right</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Panes</h3>
+        <div class="row"><span class="keys"><kbd>Super</kbd><span class="plus">+</span><kbd>D</kbd></span><span class="desc">Split horizontal (side by side)</span></div>
+        <div class="row"><span class="keys"><kbd>Super</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>D</kbd></span><span class="desc">Split vertical (stacked)</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Super</kbd><span class="plus">+</span><kbd>H/J/K/L</kbd></span><span class="desc">Move focus between panes</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>Arrows</kbd></span><span class="desc">Move focus between panes</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Arrows</kbd></span><span class="desc">Resize the current pane</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>Z</kbd></span><span class="desc">Toggle pane zoom</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Font &amp; window</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>=</kbd></span><span class="desc">Increase font size</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>-</kbd></span><span class="desc">Decrease font size</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>0</kbd></span><span class="desc">Reset font size</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>N</kbd></span><span class="desc">Spawn a new window</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>M</kbd></span><span class="desc">Hide window</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Copy / paste / search</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>C</kbd></span><span class="desc">Copy to clipboard</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>V</kbd></span><span class="desc">Paste from clipboard</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F</kbd></span><span class="desc">Search scrollback</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>K</kbd></span><span class="desc">Clear scrollback</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>U</kbd></span><span class="desc">Unicode / emoji character select</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Copy mode <span class="footnote" style="margin:0">(enter: Ctrl+Shift+X)</span></h3>
+        <div class="row"><span class="keys"><kbd>h j k l</kbd></span><span class="desc">Move cursor</span></div>
+        <div class="row"><span class="keys"><kbd>w</kbd> / <kbd>b</kbd></span><span class="desc">Word forward / backward</span></div>
+        <div class="row"><span class="keys"><kbd>0</kbd> / <kbd>$</kbd></span><span class="desc">Start / end of line</span></div>
+        <div class="row"><span class="keys"><kbd>g</kbd> / <kbd>G</kbd></span><span class="desc">Top / bottom of scrollback</span></div>
+        <div class="row"><span class="keys"><kbd>v</kbd> / <kbd>V</kbd></span><span class="desc">Cell / line selection</span></div>
+        <div class="row"><span class="keys"><kbd>y</kbd></span><span class="desc">Yank selection, copy &amp; exit</span></div>
+        <div class="row"><span class="keys"><kbd>q</kbd> / <kbd>Esc</kbd></span><span class="desc">Exit copy mode</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Misc</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>P</kbd></span><span class="desc">Command palette</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>R</kbd></span><span class="desc">Reload configuration</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>L</kbd></span><span class="desc">Debug overlay</span></div>
+        <p class="footnote">macOS-only bindings (Cmd+&hellip;) from the shared config are omitted here since there's no Cmd key on this laptop.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ TMUX ============ -->
+  <section class="tool-section">
+    <div class="tool-title">tmux <span class="sub">prefix: Ctrl+a</span></div>
+    <div class="groups">
+
+      <div class="group">
+        <h3>Sessions</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>s</kbd></span><span class="desc">Choose session</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>S</kbd></span><span class="desc">New session (prompts for name)</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>d</kbd></span><span class="desc">Detach client</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Windows (tabs)</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>c</kbd></span><span class="desc">New window (keeps current path)</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>n</kbd> / <kbd>p</kbd></span><span class="desc">Next / previous window</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>w</kbd></span><span class="desc">Choose window (list)</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>,</kbd></span><span class="desc">Rename window</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>q</kbd></span><span class="desc">Kill window (confirm)</span></div>
+        <div class="row"><span class="keys"><kbd>Alt</kbd><span class="plus">+</span><kbd>&larr;</kbd> / <kbd>&rarr;</kbd></span><span class="desc">Switch window directly, no prefix needed</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Panes</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>v</kbd></span><span class="desc">Split side-by-side</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>b</kbd></span><span class="desc">Split below</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>h j k l</kbd></span><span class="desc">Move between panes (vim-style)</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>Arrows</kbd></span><span class="desc">Move between panes</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>Shift+Arrows</kbd> / <kbd>H J K L</kbd></span><span class="desc">Resize pane by 5 cells</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>x</kbd></span><span class="desc">Kill pane (confirm)</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>z</kbd></span><span class="desc">Toggle pane zoom (tmux default)</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Copy mode &amp; misc</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>e</kbd></span><span class="desc">Enter copy mode</span></div>
+        <div class="row"><span class="keys"><kbd>Space</kbd></span><span class="desc">Begin selection (in copy mode)</span></div>
+        <div class="row"><span class="keys"><kbd>Enter</kbd></span><span class="desc">Copy selection to clipboard &amp; exit (via wl-copy)</span></div>
+        <div class="row"><span class="keys"><kbd>Esc</kbd></span><span class="desc">Cancel copy mode</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>P</kbd></span><span class="desc">Paste buffer</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>a</kbd> <kbd>r</kbd></span><span class="desc">Reload tmux config</span></div>
+        <div class="row"><span class="keys"><kbd>Mouse</kbd></span><span class="desc">Click to select pane, drag to resize, scroll to scroll</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ ZSH ============ -->
+  <section class="tool-section">
+    <div class="tool-title">zsh <span class="sub">autosuggestions + syntax highlighting</span></div>
+    <div class="groups">
+
+      <div class="group">
+        <h3>Line editing — custom</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F</kbd></span><span class="desc">Accept the greyed-out autosuggestion</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>&larr;</kbd> / <kbd>&rarr;</kbd></span><span class="desc">Move by word</span></div>
+        <div class="row"><span class="keys"><kbd>Delete</kbd></span><span class="desc">Delete character forward</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Delete</kbd></span><span class="desc">Kill word forward</span></div>
+        <div class="row"><span class="keys"><kbd>Home</kbd> / <kbd>End</kbd></span><span class="desc">Start / end of line</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Line editing — built-in (emacs mode)</h3>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>A</kbd> / <kbd>E</kbd></span><span class="desc">Start / end of line</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>R</kbd></span><span class="desc">Reverse history search</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>W</kbd></span><span class="desc">Delete word backward</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>U</kbd> / <kbd>K</kbd></span><span class="desc">Clear line before / after cursor</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>L</kbd></span><span class="desc">Clear screen</span></div>
+        <div class="row"><span class="keys"><kbd>Tab</kbd></span><span class="desc">Completion menu (arrow keys to select)</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Quick aliases</h3>
+        <div class="row"><span class="keys"><kbd>t</kbd></span><span class="desc">tmux new -A -s main</span></div>
+        <div class="row"><span class="keys"><kbd>v</kbd></span><span class="desc">nvim</span></div>
+        <div class="row"><span class="keys"><kbd>lg</kbd></span><span class="desc">lazygit</span></div>
+        <div class="row"><span class="keys"><kbd>cc</kbd></span><span class="desc">claude --dangerously-skip-permissions</span></div>
+        <div class="row"><span class="keys"><kbd>co</kbd></span><span class="desc">codex --full-auto</span></div>
+        <div class="row"><span class="keys"><kbd>ll</kbd> / <kbd>la</kbd> / <kbd>l</kbd></span><span class="desc">ls -alF / ls -A / ls -CF</span></div>
+        <div class="row"><span class="keys"><kbd>gs</kbd> <kbd>gl</kbd> <kbd>gp</kbd> <kbd>gP</kbd></span><span class="desc">git status / log --graph / pull / push</span></div>
+        <p class="footnote">50+ more work-specific aliases live in <code>~/.profile</code> (SSH bastions, deploy scripts, k8s helpers) — intentionally not tracked in the dotfiles repo.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ NEOVIM ============ -->
+  <section class="tool-section">
+    <div class="tool-title">Neovim <span class="sub">leader key: Space</span></div>
+    <div class="groups">
+
+      <div class="group">
+        <h3>General</h3>
+        <div class="row"><span class="keys"><kbd>Esc</kbd></span><span class="desc">Save file</span></div>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>w</kbd></span><span class="desc">Save</span></div>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>q</kbd></span><span class="desc">Quit</span></div>
+        <div class="row"><span class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>A</kbd></span><span class="desc">Select all (normal mode)</span></div>
+        <div class="row"><span class="keys"><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></span><span class="desc">Next / previous buffer</span></div>
+        <div class="row"><span class="keys"><kbd>Esc</kbd> <kbd>Esc</kbd></span><span class="desc">Exit terminal mode to normal mode</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Windows &amp; buffers</h3>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>h j k l</kbd></span><span class="desc">Move to window left/down/up/right</span></div>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>sv</kbd></span><span class="desc">Split window right</span></div>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>ss</kbd></span><span class="desc">Split window below</span></div>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>n</kbd> / <kbd>p</kbd></span><span class="desc">Next / previous buffer</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Find &amp; search <span class="footnote" style="margin:0">(Snacks picker)</span></h3>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>f</kbd></span><span class="desc">Find files</span></div>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>s</kbd></span><span class="desc">Search text (grep)</span></div>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>b</kbd></span><span class="desc">List open buffers</span></div>
+        <div class="row"><span class="keys"><kbd>g</kbd> <kbd>d</kbd></span><span class="desc">Go to LSP definition</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Git <span class="footnote" style="margin:0">(Neogit + gitsigns)</span></h3>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>g</kbd></span><span class="desc">Open Neogit (full git UI)</span></div>
+        <div class="row"><span class="keys"><em>always on</em></span><span class="desc">Current-line git blame shown inline</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Files &amp; diagnostics</h3>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>e</kbd></span><span class="desc">Open file browser (Oil)</span></div>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <kbd>dn</kbd> / <kbd>dp</kbd></span><span class="desc">Next / previous diagnostic</span></div>
+      </div>
+
+      <div class="group">
+        <h3>Discoverability</h3>
+        <div class="row"><span class="keys"><kbd>Space</kbd> <em>(hold)</em></span><span class="desc">which-key.nvim pops up showing every leader shortcut live</span></div>
+        <p class="footnote">Colorscheme: rose-pine (moon variant). First <code>nvim</code> launch bootstraps lazy.nvim plugins from GitHub — expect a short delay once.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>
+    Generated from <code>~/.dotfiles</code> (files/, home.nix, home/) — update this page by hand if those configs change.
+  </footer>
+
+</div>
+
+<script>
+  const search = document.getElementById('search');
+  const rows = Array.from(document.querySelectorAll('.row'));
+  const groups = Array.from(document.querySelectorAll('.group'));
+
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.classList.toggle('hidden', q.length > 0 && !text.includes(q));
+    });
+    groups.forEach(group => {
+      const anyVisible = Array.from(group.querySelectorAll('.row')).some(r => !r.classList.contains('hidden'));
+      group.style.display = (q.length === 0 || anyVisible) ? '' : 'none';
+    });
+  });
+</script>
+
+</body>
+</html>
