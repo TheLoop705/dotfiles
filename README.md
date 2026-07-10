@@ -7,6 +7,7 @@ This repo is based on the structure of `kunchenguid/dotfiles`, adapted for `TheL
 
 - zsh with autosuggestions, syntax highlighting, aliases, and starship prompt
 - common CLI tools through Home Manager: `rg`, `fd`, `fzf`, `jq`, `gh`, `git`, `lazygit`, `nvim`, `tmux`, `wget`
+- a local Whisper dictation daemon (Linux only) — global hotkey works in any app, any window, regardless of display protocol; builds and installs itself automatically, see "Whisper dictation daemon" below
 - Neovim with lazy.nvim, rose-pine moon, file picker, grep, git signs, Neogit, and Oil
 - WezTerm config, with macOS-only blur guarded so the file also works on Linux
 - herdr config
@@ -86,6 +87,13 @@ Do not run the bootstrap as root.
 sudo apt update
 sudo apt install -y curl git xz-utils ca-certificates
 ```
+
+The dictation daemon (see "Whisper dictation daemon" below) additionally needs
+`sudo apt install -y build-essential pkg-config libasound2-dev libdbus-1-dev`
+and this account in the `input` group. `./rebuild.sh` builds and installs it
+automatically once those are in place — it isn't part of the bootstrap
+prerequisites above because it's Linux-specific and only strictly needed if
+you want dictation working.
 
 ### 2. Username is already per-host
 
@@ -230,6 +238,60 @@ Home Manager uses out-of-store symlinks for config directories:
 Editing files under `home/` changes the live config after the symlink is installed.
 Run `./rebuild.sh` when changing Nix package lists, system settings, or Home Manager declarations.
 
+## Whisper dictation daemon
+
+Vendored at `pkgs/dictation-daemon/` from
+[J-monti/whisper-dictation-linux](https://github.com/J-monti/whisper-dictation-linux)
+(MIT), patched to read its global hotkey via raw `evdev` instead of `rdev`'s
+X11-only backend — see that directory's own README for why. Ctrl+Shift+Space
+starts/stops recording and types the transcription wherever the cursor is,
+in any app, native Wayland or not.
+
+`home.activation.dictationDaemon` in `home.nix` builds it with `cargo` and
+installs it to `~/.local/bin/dictation` automatically on every
+`./rebuild.sh`, skipping the build if the vendored source hasn't changed.
+`systemd.user.services.dictation` runs it (`After=graphical-session.target`,
+restarts on failure). It also fetches the Whisper model
+(`~/whisper-models/ggml-base.en.bin`, ~150MB) on first run if missing.
+
+Three things Nix deliberately doesn't provide for this build, and why (full
+reasoning is in `home.nix`'s comment on the dictation-daemon package list):
+
+- **A C compiler.** The linker that performs the final link step is what
+  embeds a binary's runtime dynamic loader. Nix's `gcc` embeds Nix's own
+  hermetic loader, which only ever searches the Nix store — never
+  `/usr/lib` — in any environment, regardless of `LD_LIBRARY_PATH`. That
+  breaks every system library linked into the result. The system's `gcc`
+  (`build-essential`) is required so the binary gets a normal loader.
+- **ALSA.** Even with a working loader, nixpkgs' `alsa-lib` is a minimal
+  build with no runtime plugins, so it can't find the system's PipeWire
+  ALSA plugin (different, incompatible search path) and audio capture
+  fails. The system's `libasound2-dev` is required instead.
+- **D-Bus.** Pulls in a transitive runtime dependency on `libsystemd` that
+  only resolves inside a Nix-managed runtime. The system's `libdbus-1-dev`
+  is required instead.
+
+(`pkg-config` itself is also required from the system, since nixpkgs wraps
+its own copy to search only Nix store paths by design.)
+
+`home.activation.dictationDaemon` checks for all of these before building
+and prints the exact `apt install` command if anything is missing, rather
+than a confusing build or runtime error.
+
+**Reading `/dev/input/event*` (the hotkey) and writing to `/dev/uinput`
+(ydotool's text injection) both need this account in the `input` group.**
+Home Manager can't grant that on non-NixOS Linux — it's a one-time manual
+step:
+
+```sh
+sudo usermod -aG input "$(whoami)"
+```
+
+Then log out and back in (group membership is applied at login). Until
+then, the daemon starts and runs, but the hotkey silently does nothing —
+`home.activation.dictationDaemon` also checks for this and prints a warning
+if it's missing.
+
 ## Notes
 
 - Secrets, local databases, app caches, and machine-specific auth files are intentionally not tracked.
@@ -250,7 +312,7 @@ Everything else in this README is already applied on this Ubuntu laptop as of to
 
    This needs your account password interactively, so it can't be scripted. Log out and back in afterward.
 
-2. **`ydotool.service` is inactive.** It exhausted its restart attempts earlier today — unrelated to this dotfiles work, but the Whisper dictation daemon depends on it to type out transcribed text. If Ctrl+Shift+Space stops producing text, check `journalctl --user -u ydotool -n 50 --no-pager` and try `systemctl --user restart ydotool.service`.
+2. ~~`ydotool.service` is inactive.~~ Resolved 2026-07-10 — see below; it needed the `input` group, same as the dictation daemon's hotkey.
 
 3. **`~/.config/git` was root-owned on this account** (unclear why). Its one file already matched what this repo wanted, so activation skipped it harmlessly instead of erroring, but it isn't a proper Home Manager symlink like the others yet. To fully tidy it up: `sudo chown -R "$(whoami):$(whoami)" ~/.config/git`, then re-run `./rebuild.sh`.
 
@@ -272,6 +334,28 @@ Everything else in this README is already applied on this Ubuntu laptop as of to
    - `tmux` (or the `t` alias) starts with prefix `Ctrl+a`.
    - Ctrl+Shift+Space still triggers dictation.
    - `nvim` opens the lazy.nvim-managed config.
+
+## Manual steps for this laptop (2026-07-10: dictation daemon)
+
+The dictation daemon's global hotkey wasn't reaching some apps (native
+Wayland windows specifically) and text wasn't typing at all. Both are fixed
+now — see "Whisper dictation daemon" above for the full explanation — but
+two things from that work are worth knowing about:
+
+1. **This account was added to the `input` group today** (`sudo usermod -aG
+   input sultan`, already applied and logged back in on this laptop). A
+   fresh machine running this flake needs the same one-time command —
+   `home.activation.dictationDaemon` prints a warning if it's missing
+   rather than failing silently.
+
+2. **`~/.config/systemd/user/dictation.service` and
+   `~/.config/systemd/user/default.target.wants/dictation.service`** were
+   previously a plain copied file and a manually-`systemctl enable`d
+   symlink from before this repo managed the service declaratively. Both
+   got moved aside automatically during activation
+   (`dictation.service.hm-backup`, `dictation.service.hm-backup` under
+   `default.target.wants/`) — safe to delete once you've confirmed the
+   dictation service still starts on login.
 
 ## License
 

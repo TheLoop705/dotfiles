@@ -1,0 +1,12 @@
+[package]
+name = "dictation"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+whisper-rs = "0.16"
+cpal = "0.15"
+evdev = "0.13.2"
+ksni = "0.2"
+anyhow = "1"
+signal-hook = "0.3"

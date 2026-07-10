@@ -8,5 +8,8 @@ home/.config/herdr/*.sock
 result
 result-*
 
+# dictation-daemon build output (rebuilt by home.activation, never commit)
+pkgs/dictation-daemon/target/
+
 # no-mistakes local validation state - never commit in this public repo
 .no-mistakes/
