@@ -49,6 +49,14 @@ else
     mods = "SHIFT|CTRL",
     action = wezterm.action.DisableDefaultAssignment,
   })
+
+  -- The RESIZE decoration's custom-drawn border renders as a separate
+  -- Wayland subsurface. On this machine's fractional display scaling it
+  -- intermittently computes a buffer size that isn't a valid multiple of
+  -- the compositor's integer buffer scale, which Wayland treats as a fatal
+  -- protocol error and kills the whole process. Drop to no decorations on
+  -- Linux; Mac mini keeps RESIZE since it isn't affected by this bug.
+  config.window_decorations = "NONE"
 end
 
 return config
