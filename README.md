@@ -10,6 +10,8 @@ This repo is based on the structure of `kunchenguid/dotfiles`, adapted for `TheL
 - a local Whisper dictation daemon (Linux only) — global hotkey works in any app, any window, regardless of display protocol; builds and installs itself automatically, see "Whisper dictation daemon" below
 - Neovim with lazy.nvim, rose-pine moon, file picker, grep, git signs, Neogit, and Oil
 - WezTerm config, with macOS-only blur guarded so the file also works on Linux
+- Windows-native local Whisper dictation (multilingual `small` model) through
+  the WSL/Windows setup
 - herdr config
 - shared agent instructions for Claude, Codex, and opencode
 - Claude settings/status line

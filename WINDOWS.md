@@ -158,6 +158,25 @@ as well, then restart WezTerm:
 git -C "$HOME\dotfiles" pull
 ```
 
+## Local speech-to-text dictation
+
+The Windows-native dictation service lives in
+[`windows/whisper-dictation`](windows/whisper-dictation). It runs the local,
+multilingual Whisper `small` model through faster-whisper using CPU INT8, which
+is a good accuracy/speed balance for German and English. It loads the model at
+Windows sign-in and never sends recorded speech to a cloud service.
+
+Install it from normal PowerShell:
+
+```powershell
+& "$HOME\dotfiles\windows\whisper-dictation\install.ps1"
+```
+
+Use `Ctrl+Shift+Space` once to begin recording and again to stop. The service
+transcribes the recording and types the text into the app that had focus. See
+[`windows/whisper-dictation/README.md`](windows/whisper-dictation/README.md)
+for behavior, files, and troubleshooting.
+
 ## Troubleshooting
 
 - If WezTerm reports that `WSL:Ubuntu` is unavailable, run `wsl --list --verbose`.
