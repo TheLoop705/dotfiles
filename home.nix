@@ -24,6 +24,12 @@ in
     wget
   ] ++ lib.optionals (pkgs ? nerd-fonts && pkgs.nerd-fonts ? hack) [
     pkgs.nerd-fonts.hack
+  ] ++ lib.optionals pkgs.stdenv.isLinux [
+    # Lets the Whisper dictation daemon type transcribed text via the
+    # Wayland virtual-keyboard protocol. Linux-only; ydotool needs an
+    # /dev/uinput group membership this account doesn't have, wtype needs
+    # no special permissions under Mutter.
+    wtype
   ];
   fonts.fontconfig.enable = true;
   home.sessionVariables = {
