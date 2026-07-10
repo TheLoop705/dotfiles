@@ -26,10 +26,20 @@ linux_arch() {
   esac
 }
 
+is_wsl() {
+  [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qiE '(microsoft|wsl)' /proc/sys/kernel/osrelease 2>/dev/null
+}
+
 switch_target() {
   case "$OS" in
     Darwin) printf 'mac' ;;
-    Linux) printf '%s@linux-%s' "$(whoami)" "$(linux_arch)" ;;
+    Linux)
+      if is_wsl; then
+        printf '%s@wsl-%s' "$(whoami)" "$(linux_arch)"
+      else
+        printf '%s@linux-%s' "$(whoami)" "$(linux_arch)"
+      fi
+      ;;
     *)
       echo "Unsupported operating system: $OS" >&2
       exit 1
@@ -65,7 +75,13 @@ echo "==> Step 3: personalize the configured username"
 REAL_USER="$(whoami)"
 case "$OS" in
   Darwin) FLAKE_USER_VAR="macUser" ;;
-  Linux) FLAKE_USER_VAR="linuxUser" ;;
+  Linux)
+    if is_wsl; then
+      FLAKE_USER_VAR="wslUser"
+    else
+      FLAKE_USER_VAR="linuxUser"
+    fi
+    ;;
 esac
 FLAKE_USER="$(sed -nE "s/^[[:space:]]*${FLAKE_USER_VAR} = \"([^\"]+)\";.*/\1/p" "$DIR/flake.nix" | head -n1)"
 if [ -z "$FLAKE_USER" ]; then

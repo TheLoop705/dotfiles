@@ -73,6 +73,11 @@ After bootstrap, use:
 ./rebuild.sh
 ```
 
+For a Windows workstation using WSL 2 and WezTerm, follow [WINDOWS.md](WINDOWS.md).
+The WSL setup is a Home Manager target, not a NixOS installation: Windows stays
+Windows, Ubuntu stays the WSL distribution, and only the portable user workflow
+is managed by Nix.
+
 `rebuild.sh` auto-detects macOS versus Linux and applies the matching target.
 
 ## Ubuntu 26.04 laptop setup

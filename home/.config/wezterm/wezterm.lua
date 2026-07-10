@@ -2,6 +2,7 @@ local wezterm = require("wezterm")
 
 local config = wezterm.config_builder()
 local is_darwin = string.find(wezterm.target_triple, "darwin") ~= nil
+local is_windows = string.find(wezterm.target_triple, "windows") ~= nil
 
 config.color_scheme = "rose-pine-moon"
 config.font = wezterm.font("Hack Nerd Font")
@@ -35,6 +36,23 @@ config.keys = {
 
 if is_darwin then
   config.macos_window_background_blur = 50
+elseif is_windows then
+  -- Native Windows GUI, Linux shell: use WezTerm's WSL domain instead of
+  -- spawning cmd.exe or PowerShell. It preserves the working directory when
+  -- creating tabs and panes, unlike launching `wsl.exe` as a local process.
+  config.default_domain = "WSL:Ubuntu"
+  config.wsl_domains = wezterm.default_wsl_domains()
+  for _, domain in ipairs(config.wsl_domains) do
+    if domain.name == config.default_domain then
+      domain.default_prog = { "/usr/bin/zsh", "-l" }
+    end
+  end
+
+  -- Windows-friendly counterparts to the existing macOS Super-key bindings.
+  table.insert(config.keys, { key = "t", mods = "CTRL|SHIFT", action = wezterm.action.SpawnTab("CurrentPaneDomain") })
+  table.insert(config.keys, { key = "w", mods = "CTRL|SHIFT", action = wezterm.action.CloseCurrentTab({ confirm = true }) })
+  table.insert(config.keys, { key = "d", mods = "CTRL|SHIFT", action = wezterm.action.SplitHorizontal({ domain = "CurrentPaneDomain" }) })
+  table.insert(config.keys, { key = "d", mods = "CTRL|SHIFT|ALT", action = wezterm.action.SplitVertical({ domain = "CurrentPaneDomain" }) })
 else
   -- Always launch zsh as a login shell on Linux, regardless of the
   -- account's default login shell in /etc/passwd.
