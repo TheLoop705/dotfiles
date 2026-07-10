@@ -39,6 +39,16 @@ else
   -- Always launch zsh as a login shell on Linux, regardless of the
   -- account's default login shell in /etc/passwd.
   config.default_prog = { "/usr/bin/zsh", "-l" }
+
+  -- Ctrl+Shift+Space is reserved system-wide for the Whisper dictation
+  -- daemon. WezTerm's built-in QuickSelect default binds the same combo,
+  -- so it has to be explicitly disabled here or it wins while WezTerm has
+  -- focus. Mac mini keeps QuickSelect since it has no dictation daemon.
+  table.insert(config.keys, {
+    key = "phys:Space",
+    mods = "SHIFT|CTRL",
+    action = wezterm.action.DisableDefaultAssignment,
+  })
 end
 
 return config
