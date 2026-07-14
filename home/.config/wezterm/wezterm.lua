@@ -84,6 +84,19 @@ else
   -- may render very slightly softer on this machine's fractional-scaled
   -- displays, since XWayland scales less precisely than native Wayland.
   config.enable_wayland = false
+
+  -- Side effect of the XWayland switch above: keystrokes typed (or
+  -- injected via ydotool/wtype, e.g. by the dictation daemon) into a
+  -- WezTerm window now get resolved through XWayland's own independent
+  -- X11 keymap instead of Mutter's native-Wayland one. XWayland defaults
+  -- to "us" and never syncs with GNOME's configured layout, so on a
+  -- German keyboard/input-source this silently swaps y/z and other keys
+  -- that differ between the two layouts. WezTerm is the only thing on
+  -- this machine that starts XWayland, so re-sync its keymap every time
+  -- a WezTerm GUI process starts.
+  wezterm.on("gui-startup", function()
+    wezterm.background_child_process({ "/bin/setxkbmap", "de" })
+  end)
 end
 
 return config

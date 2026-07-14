@@ -299,6 +299,17 @@ then, the daemon starts and runs, but the hotkey silently does nothing —
 `home.activation.dictationDaemon` also checks for this and prints a warning
 if it's missing.
 
+**Wrong letters (e.g. y/z swapped) when text is typed into a WezTerm
+window.** WezTerm runs via XWayland (see `wezterm.lua`'s comment on
+`enable_wayland = false`), and XWayland keeps its own X11 keymap that
+never syncs with GNOME's configured layout — it defaults to `us`
+regardless of the actual input source. Injected keystrokes (from ydotool
+or wtype, whether from this daemon or manual typing) get resolved through
+that stale keymap. `wezterm.lua`'s `gui-startup` handler runs
+`setxkbmap de` every time a fresh WezTerm GUI process starts, which
+re-syncs it. If another XWayland client starts first and this still shows
+up, run `DISPLAY=:0 setxkbmap de` directly.
+
 ## Notes
 
 - Secrets, local databases, app caches, and machine-specific auth files are intentionally not tracked.
