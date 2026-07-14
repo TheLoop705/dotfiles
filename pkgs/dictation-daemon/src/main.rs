@@ -841,9 +841,55 @@ fn release_keys() {
         .status();
 }
 
+// ydotool has no concept of keyboard layout: per its own --help text, it
+// "uses raw keycodes now" and its examples are explicitly "on a standard
+// US keyboard". For each character it's asked to type, it presses
+// whichever physical key produces that character on a US layout -- it
+// never looks at the layout actually active on the receiving end.
+//
+// This machine's active layout is German QWERTZ (kept in sync for both
+// native-Wayland apps and XWayland ones, see wezterm.lua's gui-startup
+// hook), which assigns different characters to several of those same
+// physical keys. So a character typed by ydotool gets reinterpreted
+// through the German layout and can come out wrong -- most visibly y/z,
+// which QWERTZ swaps relative to QWERTY, but also several punctuation
+// keys whose German assignment differs from US.
+//
+// The fix is the mirror image of the bug: for each affected character,
+// press the US key that sits at the same physical position as the
+// German key that actually produces the desired character. Two-hop
+// derivation, confirmed against /usr/share/X11/xkb/symbols/{us,de}:
+//   want 'y' -> German 'y' lives where US has 'z' -> feed ydotool 'z'
+//   want '\'' -> German '\'' is Shift+# (US key BKSL) -> US Shift+BKSL is '|' -> feed '|'
+//   want '-' -> German '-' is unshifted US-AB10 (US '/') -> feed '/'
+//   want '?' -> German '?' is Shift+ss/? (US key AE11) -> US Shift+AE11 is '_' -> feed '_'
+// ...and so on for the table below. Verified end-to-end by injecting the
+// left-hand side into a live window and reading back the right-hand
+// side. Only covers characters plausible in English dictation output;
+// extend the table if another wrong character turns up.
+fn compensate_for_us_keycode_assumption(text: &str) -> String {
+    text.chars()
+        .map(|c| match c {
+            'y' => 'z',
+            'Y' => 'Z',
+            'z' => 'y',
+            'Z' => 'Y',
+            '\'' => '|',
+            '"' => '@',
+            '-' => '/',
+            '_' => '?',
+            '?' => '_',
+            ';' => '<',
+            ':' => '>',
+            other => other,
+        })
+        .collect()
+}
+
 fn inject_text(text: &str) {
+    let for_ydotool = compensate_for_us_keycode_assumption(text);
     match Command::new("ydotool")
-        .args(["type", "--", text])
+        .args(["type", "--", &for_ydotool])
         .status()
     {
         Ok(status) if status.success() => {

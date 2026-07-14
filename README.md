@@ -299,16 +299,33 @@ then, the daemon starts and runs, but the hotkey silently does nothing —
 `home.activation.dictationDaemon` also checks for this and prints a warning
 if it's missing.
 
-**Wrong letters (e.g. y/z swapped) when text is typed into a WezTerm
-window.** WezTerm runs via XWayland (see `wezterm.lua`'s comment on
-`enable_wayland = false`), and XWayland keeps its own X11 keymap that
-never syncs with GNOME's configured layout — it defaults to `us`
-regardless of the actual input source. Injected keystrokes (from ydotool
-or wtype, whether from this daemon or manual typing) get resolved through
-that stale keymap. `wezterm.lua`'s `gui-startup` handler runs
-`setxkbmap de` every time a fresh WezTerm GUI process starts, which
-re-syncs it. If another XWayland client starts first and this still shows
-up, run `DISPLAY=:0 setxkbmap de` directly.
+**Wrong characters (y/z swapped, `'` becoming `@`, etc.) from dictated
+text.** Two separate bugs, both from the same root cause (this machine's
+German QWERTZ layout vs. the tools' US assumptions), fixed in different
+places:
+
+- *Manual typing into WezTerm coming out wrong.* WezTerm runs via
+  XWayland (see `wezterm.lua`'s comment on `enable_wayland = false`), and
+  XWayland keeps its own X11 keymap that never syncs with GNOME's
+  configured layout — it defaults to `us` regardless of the actual input
+  source. `wezterm.lua`'s `gui-startup` handler runs `setxkbmap de` every
+  time a fresh WezTerm GUI process starts, which re-syncs it. If another
+  XWayland client starts first and this still shows up, run
+  `DISPLAY=:0 setxkbmap de` directly.
+- *Dictated text itself coming out wrong, everywhere, independent of the
+  above.* `ydotool` (the daemon's text-injection tool) has no concept of
+  keyboard layout at all — per its own `--help` text it "uses raw
+  keycodes" and its examples are explicitly "on a standard US keyboard".
+  It always presses the physical key that produces a given character on
+  a US layout, so under an actually-active German layout, characters
+  that live on different keys between the two layouts come out wrong —
+  not just y/z, but punctuation like `'` `"` `-` `_` `?` `;` `:` too.
+  `inject_text()` in `pkgs/dictation-daemon/src/main.rs` compensates by
+  substituting each affected character for whichever US character shares
+  its German key's physical position, before handing the string to
+  ydotool, so the German layout reinterprets it back to the original.
+  The table only covers characters plausible in English dictation
+  output; extend it if another wrong character turns up.
 
 ## Notes
 
