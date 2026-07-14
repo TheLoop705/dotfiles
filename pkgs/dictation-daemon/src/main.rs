@@ -10,8 +10,12 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 
 /// Minimum milliseconds between hotkey activations to prevent key-repeat spam
 const DEBOUNCE_MS: u64 = 500;
-/// Maximum recording duration in seconds before auto-stop
-const MAX_RECORDING_SECS: u64 = 60;
+/// Maximum recording duration in seconds before auto-stop. Hitting this
+/// still transcribes and types everything captured up to the cap (see the
+/// main loop's poll for a full buffer) -- it just means a dictation longer
+/// than this gets split into two transcriptions instead of one continuous
+/// one, rather than losing anything.
+const MAX_RECORDING_SECS: u64 = 5 * 60;
 
 const SAMPLE_RATE: u32 = 16000;
 const MAX_BUFFER_SAMPLES: usize = SAMPLE_RATE as usize * MAX_RECORDING_SECS as usize;
