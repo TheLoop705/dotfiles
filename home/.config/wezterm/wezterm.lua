@@ -53,6 +53,13 @@ elseif is_windows then
   table.insert(config.keys, { key = "w", mods = "CTRL|SHIFT", action = wezterm.action.CloseCurrentTab({ confirm = true }) })
   table.insert(config.keys, { key = "d", mods = "CTRL|SHIFT", action = wezterm.action.SplitHorizontal({ domain = "CurrentPaneDomain" }) })
   table.insert(config.keys, { key = "d", mods = "CTRL|SHIFT|ALT", action = wezterm.action.SplitVertical({ domain = "CurrentPaneDomain" }) })
+
+  -- Ctrl+Shift+Space is the global Windows Whisper dictation shortcut.
+  table.insert(config.keys, {
+    key = "phys:Space",
+    mods = "SHIFT|CTRL",
+    action = wezterm.action.DisableDefaultAssignment,
+  })
 else
   -- Always launch zsh as a login shell on Linux, regardless of the
   -- account's default login shell in /etc/passwd.
