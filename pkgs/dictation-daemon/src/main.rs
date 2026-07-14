@@ -1,9 +1,11 @@
 use anyhow::{Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use inotify::{Inotify, WatchMask};
+use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 /// Minimum milliseconds between hotkey activations to prevent key-repeat spam
@@ -219,91 +221,41 @@ fn main() -> Result<()> {
     println!("Press Ctrl+C to quit.\n");
 
     // Global hotkey listener: raw evdev, one thread per keyboard-capable
-    // input device. This sees every keystroke at the kernel level, so it
-    // works no matter which window has focus and regardless of whether
-    // that window is a native Wayland client or an XWayland one -- unlike
-    // an X11-based grab (rdev's only Linux backend as of the published
-    // 0.5.x releases), which only ever sees XWayland-routed windows.
+    // input device, plus a watcher that picks up newly connected keyboards
+    // (docking a laptop, plugging in a USB keyboard, etc.) without needing
+    // a restart. This sees every keystroke at the kernel level, so it works
+    // no matter which window has focus and regardless of whether that
+    // window is a native Wayland client or an XWayland one -- unlike an
+    // X11-based grab (rdev's only Linux backend as of the published 0.5.x
+    // releases), which only ever sees XWayland-routed windows.
     //
     // Requires this account to be in the `input` group:
     //   sudo usermod -aG input $USER
     // then log out and back in (group membership is applied at login).
     // Until then, evdev::enumerate() can't open any devices and this
     // degrades to a no-op with a warning below, rather than failing loudly.
-    let ctrl = Arc::new(AtomicBool::new(false));
-    let shift = Arc::new(AtomicBool::new(false));
-    let last_toggle = Arc::new(AtomicU64::new(0));
-    let processing = Arc::new(AtomicBool::new(false));
-    let media_was_playing = Arc::new(AtomicBool::new(false));
-    let ctx = Arc::new(ctx);
+    let state = HotkeyState {
+        ctrl: Arc::new(AtomicBool::new(false)),
+        shift: Arc::new(AtomicBool::new(false)),
+        recording: recording.clone(),
+        audio_buf: audio_buf.clone(),
+        ctx: Arc::new(ctx),
+        last_toggle: Arc::new(AtomicU64::new(0)),
+        processing: Arc::new(AtomicBool::new(false)),
+        smart_punctuation: smart_punctuation.clone(),
+        pause_media: pause_media.clone(),
+        media_was_playing: Arc::new(AtomicBool::new(false)),
+    };
 
     let mut keyboard_count = 0;
-    for (path, mut device) in evdev::enumerate() {
-        let is_keyboard = device
-            .supported_keys()
-            .is_some_and(|keys| keys.contains(evdev::KeyCode::KEY_LEFTCTRL));
-        if !is_keyboard {
+    for (path, device) in evdev::enumerate() {
+        if !is_keyboard(&device) {
             continue;
         }
         keyboard_count += 1;
-
-        let ctrl = ctrl.clone();
-        let shift = shift.clone();
-        let rec = recording.clone();
-        let buf = audio_buf.clone();
-        let ctx = ctx.clone();
-        let last_toggle = last_toggle.clone();
-        let processing = processing.clone();
-        let smart_punctuation = smart_punctuation.clone();
-        let pause_media = pause_media.clone();
-        let media_was_playing = media_was_playing.clone();
-
-        std::thread::spawn(move || {
-            loop {
-                let events = match device.fetch_events() {
-                    Ok(events) => events,
-                    Err(e) => {
-                        eprintln!("evdev: lost {}: {e}", path.display());
-                        return;
-                    }
-                };
-                for event in events {
-                    let evdev::EventSummary::Key(_, key, value) = event.destructure() else {
-                        continue;
-                    };
-                    match key {
-                        evdev::KeyCode::KEY_LEFTCTRL | evdev::KeyCode::KEY_RIGHTCTRL => {
-                            ctrl.store(value != 0, Ordering::Relaxed);
-                        }
-                        evdev::KeyCode::KEY_LEFTSHIFT | evdev::KeyCode::KEY_RIGHTSHIFT => {
-                            shift.store(value != 0, Ordering::Relaxed);
-                        }
-                        evdev::KeyCode::KEY_SPACE if value == 1 => {
-                            if !ctrl.load(Ordering::Relaxed) || !shift.load(Ordering::Relaxed) {
-                                continue;
-                            }
-                            // Skip if currently transcribing/injecting
-                            if processing.load(Ordering::SeqCst) {
-                                continue;
-                            }
-                            // Debounce: ignore if too soon after last toggle
-                            let now = SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis() as u64;
-                            let last = last_toggle.load(Ordering::SeqCst);
-                            if now.saturating_sub(last) < DEBOUNCE_MS {
-                                continue;
-                            }
-                            last_toggle.store(now, Ordering::SeqCst);
-                            toggle_dictation(&rec, &buf, &ctx, &processing, &smart_punctuation, &pause_media, &media_was_playing);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        });
+        spawn_keyboard_listener(path, device, state.clone());
     }
+    spawn_hotplug_watcher(state);
 
     if keyboard_count == 0 {
         eprintln!(
@@ -312,7 +264,10 @@ fn main() -> Result<()> {
              `sudo usermod -aG input $USER`, then log out and back in."
         );
     } else {
-        println!("Listening for the hotkey on {keyboard_count} keyboard device(s).");
+        println!(
+            "Listening for the hotkey on {keyboard_count} keyboard device(s), \
+             and watching for newly connected ones."
+        );
     }
 
     // Wait for shutdown signal, then clean up
@@ -325,6 +280,153 @@ fn main() -> Result<()> {
     drop(stream);
     println!("Goodbye.");
     Ok(())
+}
+
+/// Shared state a keyboard listener thread needs to track modifiers and
+/// trigger the same toggle_dictation() regardless of which physical device
+/// the Ctrl+Shift+Space came from. Cloning is cheap: every field is an Arc.
+#[derive(Clone)]
+struct HotkeyState {
+    ctrl: Arc<AtomicBool>,
+    shift: Arc<AtomicBool>,
+    recording: Arc<AtomicBool>,
+    audio_buf: Arc<Mutex<Vec<f32>>>,
+    ctx: Arc<WhisperContext>,
+    last_toggle: Arc<AtomicU64>,
+    processing: Arc<AtomicBool>,
+    smart_punctuation: Arc<AtomicBool>,
+    pause_media: Arc<AtomicBool>,
+    media_was_playing: Arc<AtomicBool>,
+}
+
+fn is_keyboard(device: &evdev::Device) -> bool {
+    device
+        .supported_keys()
+        .is_some_and(|keys| keys.contains(evdev::KeyCode::KEY_LEFTCTRL))
+}
+
+/// Spawns the thread that reads one device's raw key events and toggles
+/// dictation on Ctrl+Shift+Space. Exits quietly if the device disappears
+/// (unplugged) -- the hotplug watcher will pick up its replacement, if any.
+fn spawn_keyboard_listener(path: PathBuf, mut device: evdev::Device, state: HotkeyState) {
+    std::thread::spawn(move || loop {
+        let events = match device.fetch_events() {
+            Ok(events) => events,
+            Err(e) => {
+                eprintln!("evdev: lost {}: {e}", path.display());
+                return;
+            }
+        };
+        for event in events {
+            let evdev::EventSummary::Key(_, key, value) = event.destructure() else {
+                continue;
+            };
+            match key {
+                evdev::KeyCode::KEY_LEFTCTRL | evdev::KeyCode::KEY_RIGHTCTRL => {
+                    state.ctrl.store(value != 0, Ordering::Relaxed);
+                }
+                evdev::KeyCode::KEY_LEFTSHIFT | evdev::KeyCode::KEY_RIGHTSHIFT => {
+                    state.shift.store(value != 0, Ordering::Relaxed);
+                }
+                evdev::KeyCode::KEY_SPACE if value == 1 => {
+                    if !state.ctrl.load(Ordering::Relaxed) || !state.shift.load(Ordering::Relaxed) {
+                        continue;
+                    }
+                    // Skip if currently transcribing/injecting
+                    if state.processing.load(Ordering::SeqCst) {
+                        continue;
+                    }
+                    // Debounce: ignore if too soon after last toggle
+                    let now = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as u64;
+                    let last = state.last_toggle.load(Ordering::SeqCst);
+                    if now.saturating_sub(last) < DEBOUNCE_MS {
+                        continue;
+                    }
+                    state.last_toggle.store(now, Ordering::SeqCst);
+                    toggle_dictation(
+                        &state.recording,
+                        &state.audio_buf,
+                        &state.ctx,
+                        &state.processing,
+                        &state.smart_punctuation,
+                        &state.pause_media,
+                        &state.media_was_playing,
+                    );
+                }
+                _ => {}
+            }
+        }
+    });
+}
+
+/// Watches /dev/input for newly created device nodes (USB keyboard plugged
+/// in, laptop docked, etc.) and starts listening on any that turn out to be
+/// keyboard-capable, without needing to restart the daemon. Best-effort: if
+/// inotify itself can't be set up, this logs why and the daemon still runs
+/// with whatever devices were present at startup.
+fn spawn_hotplug_watcher(state: HotkeyState) {
+    std::thread::spawn(move || {
+        let mut inotify = match Inotify::init() {
+            Ok(i) => i,
+            Err(e) => {
+                eprintln!(
+                    "evdev: hotplug watcher disabled (inotify init failed: {e}); newly \
+                     connected keyboards will need a daemon restart to be picked up."
+                );
+                return;
+            }
+        };
+        if let Err(e) = inotify.watches().add("/dev/input", WatchMask::CREATE) {
+            eprintln!(
+                "evdev: hotplug watcher disabled (couldn't watch /dev/input: {e}); newly \
+                 connected keyboards will need a daemon restart to be picked up."
+            );
+            return;
+        }
+
+        let mut buffer = [0; 1024];
+        loop {
+            let events = match inotify.read_events_blocking(&mut buffer) {
+                Ok(events) => events,
+                Err(e) => {
+                    eprintln!("evdev: hotplug watcher stopped unexpectedly: {e}");
+                    return;
+                }
+            };
+            for event in events {
+                let Some(name) = event.name else { continue };
+                let name = name.to_string_lossy();
+                if !name.starts_with("event") {
+                    continue; // ignore by-id/by-path symlinks, only react to the real node
+                }
+                let path = PathBuf::from("/dev/input").join(name.as_ref());
+
+                // A just-created device node can take a moment to become
+                // readable while udev finishes applying permissions, so
+                // retry briefly instead of giving up on the first failure.
+                let mut opened = None;
+                for _ in 0..10 {
+                    match evdev::Device::open(&path) {
+                        Ok(d) => {
+                            opened = Some(d);
+                            break;
+                        }
+                        Err(_) => std::thread::sleep(Duration::from_millis(200)),
+                    }
+                }
+                let Some(device) = opened else { continue };
+                if !is_keyboard(&device) {
+                    continue;
+                }
+
+                println!("New keyboard device detected: {}", path.display());
+                spawn_keyboard_listener(path, device, state.clone());
+            }
+        }
+    });
 }
 
 fn toggle_dictation(
