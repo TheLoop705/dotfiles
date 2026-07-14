@@ -201,10 +201,14 @@ fn main() -> Result<()> {
                         let remaining = MAX_BUFFER_SAMPLES - buf.len();
                         let take = data.len().min(remaining);
                         buf.extend_from_slice(&data[..take]);
-                        if buf.len() >= MAX_BUFFER_SAMPLES {
-                            rec_flag.store(false, Ordering::SeqCst);
-                            eprintln!("Max recording duration ({MAX_RECORDING_SECS}s) reached, auto-stopping.");
-                        }
+                        // Deliberately doesn't stop `rec_flag` or transcribe
+                        // here: this closure runs on the realtime audio
+                        // thread and must never block on something as slow
+                        // as Whisper. The main loop below polls for a full
+                        // buffer and does the actual stop+transcribe+inject
+                        // -- once this reaches the cap, further calls just
+                        // stop being appended (buf.len() < MAX_BUFFER_SAMPLES
+                        // above goes false) until that happens.
                     }
                 }
             }
@@ -255,7 +259,7 @@ fn main() -> Result<()> {
         keyboard_count += 1;
         spawn_keyboard_listener(path, device, state.clone());
     }
-    spawn_hotplug_watcher(state);
+    spawn_hotplug_watcher(state.clone());
 
     if keyboard_count == 0 {
         eprintln!(
@@ -270,8 +274,33 @@ fn main() -> Result<()> {
         );
     }
 
-    // Wait for shutdown signal, then clean up
+    // Wait for shutdown signal, checking each tick whether a recording hit
+    // MAX_RECORDING_SECS and needs to be flushed through the same
+    // stop+transcribe+inject path a manual Ctrl+Shift+Space stop uses. The
+    // audio callback above only stops *capturing* once the buffer is full
+    // (it can't safely do anything slower on the realtime audio thread);
+    // this is what actually processes whatever was captured, so a long
+    // dictation that runs past the cap doesn't just silently vanish.
     while !shutdown.load(Ordering::SeqCst) {
+        if state.recording.load(Ordering::Relaxed) {
+            let hit_cap = state
+                .audio_buf
+                .lock()
+                .map(|buf| buf.len() >= MAX_BUFFER_SAMPLES)
+                .unwrap_or(false);
+            if hit_cap {
+                eprintln!("Max recording duration ({MAX_RECORDING_SECS}s) reached, auto-stopping.");
+                toggle_dictation(
+                    &state.recording,
+                    &state.audio_buf,
+                    &state.ctx,
+                    &state.processing,
+                    &state.smart_punctuation,
+                    &state.pause_media,
+                    &state.media_was_playing,
+                );
+            }
+        }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
