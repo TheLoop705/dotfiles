@@ -1,31 +1,11 @@
 {
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://192.168.178.81:11434",
-    "ANTHROPIC_AUTH_TOKEN": "ollama",
-    "ANTHROPIC_API_KEY": "",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
-  },
   "model": "haiku",
   "permissions": {
     "allow": [
-      "Bash",
-      "Edit",
-      "Write",
       "Read",
       "Glob",
-      "Grep",
-      "WebFetch",
-      "WebSearch",
-      "NotebookEdit",
-      "Agent",
-      "mcp__plugin_playwright_playwright__browser_take_screenshot",
-      "mcp__plugin_playwright_playwright__browser_snapshot",
-      "mcp__gcal__gcal_todays_schedule",
-      "mcp__gcal__gcal_list_events",
-      "mcp__gcal__gcal_get_event",
-      "mcp__claude_ai_Mermaid_Chart__validate_and_render_mermaid_diagram"
-    ],
-    "defaultMode": "bypassPermissions"
+      "Grep"
+    ]
   },
   "enabledPlugins": {
     "feature-dev@claude-plugins-official": true,
@@ -45,7 +25,6 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "medium",
-  "skipDangerousModePermissionPrompt": true,
   "agentPushNotifEnabled": true,
   "theme": "dark-ansi",
   "statusLine": {

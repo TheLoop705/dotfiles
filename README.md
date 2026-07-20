@@ -14,7 +14,7 @@ This repo is based on the structure of `kunchenguid/dotfiles`, adapted for `TheL
   the WSL/Windows setup
 - herdr config
 - shared agent instructions for Claude, Codex, and opencode
-- Claude settings/status line
+- safe shared Claude settings/status line; machine-specific provider settings stay local
 - gh config and global git ignore
 - macOS system defaults and Homebrew inventory through nix-darwin
 
@@ -330,8 +330,18 @@ places:
 ## Notes
 
 - Secrets, local databases, app caches, and machine-specific auth files are intentionally not tracked.
-- `~/.profile` is also intentionally not tracked (not even referenced from `home/`): it holds laptop-specific aliases and SSH/bastion helpers that only make sense on one exact machine. `home.nix`'s `programs.zsh.initContent` sources `~/.profile` automatically when it exists, so it still loads on every shell without ever being committed.
-- `~/.claude/settings.local.json` is globally ignored.
+- `~/.profile` is intentionally not tracked (not even referenced from `home/`): it holds laptop-specific aliases, SSH/bastion helpers, and optional provider environment variables that only make sense on one machine. `home.nix`'s `programs.zsh.initContent` sources `~/.profile` automatically when it exists, so it still loads on every shell without ever being committed.
+- Keep `home/.claude/settings.json` portable and safe. If a machine uses a local Anthropic-compatible provider, configure it in the untracked `~/.profile`, for example:
+
+  ```sh
+  # ~/.profile -- local only; never copy real credentials into this repository
+  export ANTHROPIC_BASE_URL="http://127.0.0.1:11434"
+  export ANTHROPIC_AUTH_TOKEN="replace-with-local-provider-token"
+  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
+  ```
+
+  Leave `ANTHROPIC_API_KEY` unset unless the selected provider requires one. Store any real credential in the operating-system secret store and load it into the shell at runtime.
+- `home/.claude/settings.local.json` and `home/.claude/*.env` are ignored by this repository. Do not use them to weaken the checked-in permission baseline.
 - The existing Git identity is not managed here; keep using `git config --global user.name` and `git config --global user.email`.
 - The first `nvim` launch bootstraps lazy.nvim plugins from GitHub.
 

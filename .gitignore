@@ -13,3 +13,7 @@ pkgs/dictation-daemon/target/
 
 # no-mistakes local validation state - never commit in this public repo
 .no-mistakes/
+
+# Claude machine-local overrides and provider configuration
+home/.claude/settings.local.json
+home/.claude/*.env
