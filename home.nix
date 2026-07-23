@@ -148,6 +148,11 @@ in
       ".." = "cd ..";
       add = "git add .";
       c = "clear";
+      stt = "systemctl --user status dictation.service";
+      stt-start = "systemctl --user start dictation.service";
+      stt-stop = "systemctl --user stop dictation.service";
+      stt-restart = "systemctl --user restart dictation.service";
+      stt-logs = "journalctl --user -u dictation.service -f";
       lg = "lazygit";
       push = "git push";
       pull = "git pull";
@@ -289,6 +294,50 @@ in
       RestartSec = 3;
     };
     Install.WantedBy = [ "default.target" ];
+  };
+
+  # Desktop/application-menu launchers for the user service. The start
+  # launcher is also copied to ~/Desktop on Linux so the daemon can be
+  # started without opening a terminal.
+  xdg.desktopEntries = lib.mkIf pkgs.stdenv.isLinux {
+    "whisper-dictation-start" = {
+      name = "Start Whisper Dictation";
+      comment = "Start the local Whisper speech-to-text service";
+      exec = "systemctl --user start dictation.service";
+      icon = "audio-input-microphone";
+      terminal = false;
+      categories = [ "AudioVideo" "Audio" ];
+    };
+    "whisper-dictation-stop" = {
+      name = "Stop Whisper Dictation";
+      comment = "Stop the local Whisper speech-to-text service";
+      exec = "systemctl --user stop dictation.service";
+      icon = "audio-input-microphone";
+      terminal = false;
+      categories = [ "AudioVideo" "Audio" ];
+    };
+    "whisper-dictation-restart" = {
+      name = "Restart Whisper Dictation";
+      comment = "Restart the local Whisper speech-to-text service";
+      exec = "systemctl --user restart dictation.service";
+      icon = "audio-input-microphone";
+      terminal = false;
+      categories = [ "AudioVideo" "Audio" ];
+    };
+  };
+
+  home.file."Desktop/Whisper Dictation.desktop" = lib.mkIf pkgs.stdenv.isLinux {
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=Start Whisper Dictation
+      Comment=Start the local Whisper speech-to-text service
+      Exec=systemctl --user start dictation.service
+      Icon=audio-input-microphone
+      Terminal=false
+      Categories=AudioVideo;Audio;
+    '';
+    executable = true;
   };
   systemd.user.startServices = lib.mkIf pkgs.stdenv.isLinux "sd-switch";
 }

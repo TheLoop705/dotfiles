@@ -261,6 +261,19 @@ installs it to `~/.local/bin/dictation` automatically on every
 restarts on failure). It also fetches the Whisper model
 (`~/whisper-models/ggml-base.en.bin`, ~150MB) on first run if missing.
 
+### Starting and stopping it
+
+The service is managed in the per-user systemd session:
+
+```sh
+systemctl --user start dictation.service
+systemctl --user status dictation.service
+```
+
+Home Manager also provides these zsh aliases: `stt` (status), `stt-start`,
+`stt-stop`, `stt-restart`, and `stt-logs`. After a rebuild, **Start Whisper
+Dictation** is available in the application menu and on the Linux desktop.
+
 Three things Nix deliberately doesn't provide for this build, and why (full
 reasoning is in `home.nix`'s comment on the dictation-daemon package list):
 

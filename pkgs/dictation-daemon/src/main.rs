@@ -186,41 +186,28 @@ fn main() -> Result<()> {
     let device = host
         .default_input_device()
         .context("No input device available")?;
-    println!("Using input device: {}", device.name().unwrap_or_default());
+    let supported_config = device
+        .default_input_config()
+        .context("No supported input configuration available")?;
+    println!(
+        "Using input device: {} ({} channel(s), {} Hz, {:?})",
+        device.name().unwrap_or_default(),
+        supported_config.channels(),
+        supported_config.sample_rate().0,
+        supported_config.sample_format(),
+    );
 
-    let config = cpal::StreamConfig {
-        channels: 1,
-        sample_rate: cpal::SampleRate(SAMPLE_RATE),
-        buffer_size: cpal::BufferSize::Default,
-    };
-
-    let rec_flag = recording.clone();
-    let buf_handle = audio_buf.clone();
-    let stream = device.build_input_stream(
-        &config,
-        move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            if rec_flag.load(Ordering::Relaxed) {
-                if let Ok(mut buf) = buf_handle.lock() {
-                    if buf.len() < MAX_BUFFER_SAMPLES {
-                        let remaining = MAX_BUFFER_SAMPLES - buf.len();
-                        let take = data.len().min(remaining);
-                        buf.extend_from_slice(&data[..take]);
-                        // Deliberately doesn't stop `rec_flag` or transcribe
-                        // here: this closure runs on the realtime audio
-                        // thread and must never block on something as slow
-                        // as Whisper. The main loop below polls for a full
-                        // buffer and does the actual stop+transcribe+inject
-                        // -- once this reaches the cap, further calls just
-                        // stop being appended (buf.len() < MAX_BUFFER_SAMPLES
-                        // above goes false) until that happens.
-                    }
-                }
-            }
-        },
-        |err| eprintln!("Audio stream error: {err}"),
-        None,
+    // Use the device's native format. PipeWire/ALSA microphones commonly
+    // expose 48 kHz stereo, while Whisper expects 16 kHz mono; forcing a
+    // 16 kHz mono ALSA stream can result in a stream that starts but never
+    // delivers samples on some devices.
+    let stream = build_input_stream(
+        &device,
+        supported_config,
+        recording.clone(),
+        audio_buf.clone(),
     )?;
-    stream.play()?;
+    stream.play().context("Failed to start input stream")?;
 
     println!("\n=== Dictation Daemon Ready (Whisper) ===");
     println!("Hotkey: Ctrl + Shift + Space");
@@ -313,6 +300,232 @@ fn main() -> Result<()> {
     drop(stream);
     println!("Goodbye.");
     Ok(())
+}
+
+struct MonoResampler {
+    input_rate: u64,
+    output_rate: u64,
+    channels: usize,
+    phase: u64,
+}
+
+impl MonoResampler {
+    fn new(input_rate: u32, channels: u16) -> Self {
+        Self {
+            input_rate: u64::from(input_rate.max(1)),
+            output_rate: u64::from(SAMPLE_RATE),
+            channels: usize::from(channels.max(1)),
+            phase: 0,
+        }
+    }
+}
+
+fn capture_input<T, F>(
+    data: &[T],
+    recording: &AtomicBool,
+    audio_buf: &Mutex<Vec<f32>>,
+    resampler: &mut MonoResampler,
+    to_f32: F,
+) where
+    T: Copy,
+    F: Fn(T) -> f32,
+{
+    if !recording.load(Ordering::Relaxed) {
+        return;
+    }
+
+    let mut samples = Vec::new();
+    for frame in data.chunks_exact(resampler.channels) {
+        let mono = frame.iter().copied().map(&to_f32).sum::<f32>() / resampler.channels as f32;
+
+        resampler.phase = resampler.phase.saturating_add(resampler.output_rate);
+        while resampler.phase >= resampler.input_rate {
+            resampler.phase -= resampler.input_rate;
+            samples.push(mono);
+        }
+    }
+
+    if samples.is_empty() {
+        return;
+    }
+
+    if let Ok(mut buf) = audio_buf.lock() {
+        if buf.len() < MAX_BUFFER_SAMPLES {
+            let remaining = MAX_BUFFER_SAMPLES - buf.len();
+            buf.extend(samples.into_iter().take(remaining));
+            // Deliberately doesn't stop recording or transcribe here: this
+            // closure runs on the realtime audio thread and must not block
+            // on something as slow as Whisper. The main loop polls for a
+            // full buffer and handles the stop/transcribe path.
+        }
+    }
+}
+
+fn build_input_stream(
+    device: &cpal::Device,
+    supported_config: cpal::SupportedStreamConfig,
+    recording: Arc<AtomicBool>,
+    audio_buf: Arc<Mutex<Vec<f32>>>,
+) -> Result<cpal::Stream> {
+    let config = supported_config.config();
+    let input_rate = config.sample_rate.0;
+    let channels = config.channels;
+    let error_callback = |err| eprintln!("Audio stream error: {err}");
+
+    match supported_config.sample_format() {
+        cpal::SampleFormat::F32 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[f32], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            sample
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build f32 input stream")
+        }
+        cpal::SampleFormat::F64 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[f64], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            sample as f32
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build f64 input stream")
+        }
+        cpal::SampleFormat::I8 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[i8], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            f32::from(sample) / f32::from(i8::MAX)
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build i8 input stream")
+        }
+        cpal::SampleFormat::I16 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[i16], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            f32::from(sample) / f32::from(i16::MAX)
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build i16 input stream")
+        }
+        cpal::SampleFormat::I32 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[i32], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            sample as f32 / i32::MAX as f32
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build i32 input stream")
+        }
+        cpal::SampleFormat::I64 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[i64], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            sample as f32 / i64::MAX as f32
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build i64 input stream")
+        }
+        cpal::SampleFormat::U8 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[u8], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            (f32::from(sample) - 128.0) / 128.0
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build u8 input stream")
+        }
+        cpal::SampleFormat::U16 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[u16], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            (f32::from(sample) - 32768.0) / 32768.0
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build u16 input stream")
+        }
+        cpal::SampleFormat::U32 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[u32], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            (sample as f32 - 2_147_483_648.0) / 2_147_483_648.0
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build u32 input stream")
+        }
+        cpal::SampleFormat::U64 => {
+            let mut resampler = MonoResampler::new(input_rate, channels);
+            device
+                .build_input_stream(
+                    &config,
+                    move |data: &[u64], _| {
+                        capture_input(data, &recording, &audio_buf, &mut resampler, |sample| {
+                            (sample as f32 - 9_223_372_036_854_775_808.0)
+                                / 9_223_372_036_854_775_808.0
+                        })
+                    },
+                    error_callback,
+                    None,
+                )
+                .context("Failed to build u64 input stream")
+        }
+        format => anyhow::bail!("Unsupported input sample format: {format:?}"),
+    }
 }
 
 /// Shared state a keyboard listener thread needs to track modifiers and
