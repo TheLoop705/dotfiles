@@ -143,6 +143,14 @@ in
       if [ -f "$HOME/.profile" ]; then
         source "$HOME/.profile"
       fi
+
+      # Reuse the main session for interactive terminals, including SSH.
+      # Shells inside tmux must stay shells rather than nesting tmux again.
+      if [[ -o interactive && -t 0 && -t 1 && -z "''${TMUX:-}" ]] \
+        && command -v tmux >/dev/null 2>&1; then
+        exec tmux new-session -A -s main
+      fi
+
     '';
     shellAliases = {
       ".." = "cd ..";

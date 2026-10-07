@@ -174,10 +174,14 @@ nix build '.#homeConfigurations."sultan@linux-aarch64".activationPackage' --dry-
 Useful workflow checks:
 
 ```sh
-t                 # attach/create the main tmux session
+tmux display-message -p '#S'  # prints main in a freshly opened terminal
 nvim              # opens the repo-managed Neovim config
 ./rebuild.sh      # re-apply after editing Nix/Home Manager files
 ```
+
+Interactive zsh terminals load `~/.profile`, then attach to or create the
+persistent `main` tmux session. Shells already inside tmux and non-interactive
+commands skip automatic attachment.
 
 ### 6. Updating later
 
@@ -387,9 +391,9 @@ Everything else in this README is already applied on this Ubuntu laptop as of to
    - `~/.codex/config.toml.backup-before-dotfiles.20260708142711`
 
 6. **After a reboot, confirm:**
-   - Ctrl+Alt+T opens a WezTerm window running zsh, with autosuggestions and syntax highlighting active.
+   - Ctrl+Alt+T opens WezTerm and attaches to the `main` tmux session, with zsh, `~/.profile`, autosuggestions, and syntax highlighting loaded.
    - The starship prompt renders.
-   - `tmux` (or the `t` alias) starts with prefix `Ctrl+a`.
+   - tmux uses prefix `Ctrl+a`.
    - Ctrl+Shift+Space still triggers dictation.
    - `nvim` opens the lazy.nvim-managed config.
 

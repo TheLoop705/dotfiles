@@ -63,6 +63,7 @@ elseif is_windows then
 else
   -- Always launch zsh as a login shell on Linux, regardless of the
   -- account's default login shell in /etc/passwd.
+  -- Login zsh loads ~/.profile and automatically attaches to tmux.
   config.default_prog = { "/usr/bin/zsh", "-l" }
 
   -- Ctrl+Shift+Space is reserved system-wide for the Whisper dictation
