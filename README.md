@@ -244,7 +244,10 @@ Home Manager uses out-of-store symlinks for config directories:
 - `~/.config/gh/config.yml` -> `home/.config/gh/config.yml`
 - `~/.config/git/ignore` -> `home/.config/git/ignore`
 - `~/.claude/settings.json` -> `home/.claude/settings.json`
-- Claude, Codex, and opencode agent files -> `home/AGENTS.md`
+- Codex, Pi, and opencode instructions -> `agents/AGENTS.md`
+- `~/.claude/CLAUDE.md` -> `home/.claude/CLAUDE.md` (imports `agents/AGENTS.md`)
+- `~/.agents/skills` and `~/.claude/skills` -> `agents/skills`
+- `~/.pi/agent/settings.json` -> `agents/pi/settings.json`
 
 Editing files under `home/` changes the live config after the symlink is installed.
 Run `./rebuild.sh` when changing Nix package lists, system settings, or Home Manager declarations.
@@ -344,6 +347,55 @@ places:
   The table only covers characters plausible in English dictation
   output; extend it if another wrong character turns up.
 
+## Shared coding agents
+
+The canonical layout is:
+
+```text
+agents/
+  AGENTS.md
+  skills/<name>/SKILL.md
+  pi/settings.json
+```
+
+Home Manager links the shared instructions and skills for Codex, Claude Code,
+Pi, and the existing opencode setup. Claude's one-line `CLAUDE.md` imports
+`@~/dotfiles/agents/AGENTS.md`; append Claude-specific instructions there when
+needed. Keep the checkout at `~/dotfiles` (or link that path to the checkout).
+
+After bootstrap or rebuild, install Pi and apply the links with:
+
+```sh
+./setup-agents.sh
+```
+
+For links without npm installation, use `./setup-agents.sh --links-only`.
+The script backs up conflicting files and directories beside their original
+paths. Review existing personal skills in those backups and move only portable,
+non-secret skill sources into `agents/skills/<name>/`. Bundled Codex skills and
+plugin-managed skills remain managed by their harness.
+
+[Codex's user skills path](https://learn.chatgpt.com/docs/build-skills) is
+`~/.agents/skills`, with symlink support. [Pi also discovers that directory
+natively](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md).
+Use this single global location; do not add `~/.claude/skills` to Pi's `skills`
+settings or mirror these skills in `~/.pi/agent/skills`. Pi also discovers project
+skills in `.pi/skills` and `.agents/skills` through the Git root. Pi permits the
+frontmatter name to differ from its directory; matching them is more portable.
+
+Pi is installed into `~/.local` with
+`npm install --global --prefix "$HOME/.local" --ignore-scripts @earendil-works/pi-coding-agent`.
+Run `pi` inside a project and use `/login` for the Codex provider. For Anthropic,
+inject `ANTHROPIC_API_KEY` from your password manager or a machine-local env file
+using the organization that owns your credits. Never put keys in Pi settings.
+Keep `~/.pi/agent/auth.json`, session directories, and provider credentials on the
+machine; neither the repo nor its symlinks manage them.
+
+Skills are the portable unit. Claude subagents live in `~/.claude/agents`, Codex
+uses its own configuration, and Pi subagents require the `pi-subagents` extension.
+Express reusable personas as skills, or generate per-harness agent definitions
+from one source when needed.
+
 ## Notes
 
 - Secrets, local databases, app caches, and machine-specific auth files are intentionally not tracked.
@@ -378,7 +430,10 @@ Everything else in this README is already applied on this Ubuntu laptop as of to
 
 3. **`~/.config/git` was root-owned on this account** (unclear why). Its one file already matched what this repo wanted, so activation skipped it harmlessly instead of erroring, but it isn't a proper Home Manager symlink like the others yet. To fully tidy it up: `sudo chown -R "$(whoami):$(whoami)" ~/.config/git`, then re-run `./rebuild.sh`.
 
-4. **Review the merged Claude/Codex config.** `home/.claude/settings.json` and `home/AGENTS.md` now combine this laptop's prior local setup (an `env` block routing to a local Ollama server, `model: haiku`, the sandbox access-rules text) with the repo's fuller permissions/plugins list — including `defaultMode: bypassPermissions`, which was already in this repo before today and was kept intentionally. If anything about the merged behavior surprises you, the pre-merge versions are still on disk:
+4. **Review the Claude and shared agent config.** `home/.claude/settings.json`
+   manages portable Claude preferences; `agents/AGENTS.md` contains shared
+   instructions. Keep provider URLs and credentials in machine-local overrides.
+   Pre-Home-Manager backups may still be available:
    - `~/.claude/settings.json.hm-backup`
    - `~/.claude/CLAUDE.md.hm-backup`
    - `~/.codex/AGENTS.md.hm-backup`

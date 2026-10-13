@@ -22,6 +22,7 @@ in
     neovim
     tmux
     wget
+    nodejs    # Pi and other npm-based agent tools
   ] ++ lib.optionals (pkgs ? nerd-fonts && pkgs.nerd-fonts ? hack) [
     pkgs.nerd-fonts.hack
   ] ++ lib.optionals pkgs.stdenv.isLinux [
@@ -181,6 +182,11 @@ in
     settings = {
       add_newline = false;
       format = "$directory$git_branch$git_status$cmd_duration$line_break$character";
+      directory = {
+        home_symbol = config.home.homeDirectory;
+        truncation_length = 0;
+        truncate_to_repo = false;
+      };
       character = {
         success_symbol = "[❯](purple)";
         error_symbol = "[❯](red)";
@@ -206,11 +212,21 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/settings.json";
 
   home.file.".claude/CLAUDE.md".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/CLAUDE.md";
   home.file.".codex/AGENTS.md".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/agents/AGENTS.md";
   home.file.".config/opencode/AGENTS.md".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/agents/AGENTS.md";
+
+  # Codex and Pi discover ~/.agents/skills natively; Claude uses its own path.
+  home.file.".agents/skills".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/agents/skills";
+  home.file.".claude/skills".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/agents/skills";
+  home.file.".pi/agent/AGENTS.md".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/agents/AGENTS.md";
+  home.file.".pi/agent/settings.json".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/agents/pi/settings.json";
 
   # Standalone Home Manager on non-NixOS Linux can't reach into the systemd
   # user manager's own environment the way it does on real NixOS, so

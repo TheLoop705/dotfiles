@@ -103,6 +103,7 @@ sudo apt install -y curl git xz-utils ca-certificates zsh
 git clone https://github.com/TheLoop705/dotfiles.git ~/dotfiles
 cd ~/dotfiles
 ./bootstrap.sh
+./setup-agents.sh
 chsh -s /usr/bin/zsh
 ```
 
@@ -126,7 +127,7 @@ Windows Terminal Ubuntu profile as well. WezTerm already launches zsh directly.
 From Ubuntu:
 
 ```sh
-command -v nix nvim tmux rg fd fzf lazygit starship
+command -v nix nvim tmux rg fd fzf lazygit starship pi
 nix flake check --no-build
 t
 ```

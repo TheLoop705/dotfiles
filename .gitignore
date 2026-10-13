@@ -17,3 +17,11 @@ pkgs/dictation-daemon/target/
 # Claude machine-local overrides and provider configuration
 home/.claude/settings.local.json
 home/.claude/*.env
+
+# Agent authentication, sessions, and local backups are never canonical config.
+agents/**/auth.json
+agents/**/.env
+agents/**/*.env
+agents/**/sessions/
+agents/**/*.jsonl
+*.before-shared-agents.*
