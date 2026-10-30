@@ -26,11 +26,15 @@ in
   ] ++ lib.optionals (pkgs ? nerd-fonts && pkgs.nerd-fonts ? hack) [
     pkgs.nerd-fonts.hack
   ] ++ lib.optionals pkgs.stdenv.isLinux [
+    wezterm
+
     # Lets the Whisper dictation daemon type transcribed text via the
     # Wayland virtual-keyboard protocol. Linux-only; ydotool needs an
-    # /dev/uinput group membership this account doesn't have, wtype needs
-    # no special permissions under Mutter.
+    # /dev/uinput group membership this account doesn't have. wl-clipboard
+    # provides a Unicode-safe paste fallback when the compositor rejects
+    # wtype's virtual-keyboard protocol.
     wtype
+    wl-clipboard
 
     # Build deps for pkgs/dictation-daemon (see home.activation below):
     # cargo/rustc build it, cmake+libclang are needed by whisper-rs
@@ -166,7 +170,6 @@ in
       push = "git push";
       pull = "git pull";
       m = "git switch main";
-      t = "tmux new-session -A -s main";
       tn = "tmux new-session -s";
       v = "nvim";
       cc = "claude --dangerously-skip-permissions";
@@ -200,8 +203,8 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/wezterm";
   home.file.".config/nvim".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/nvim";
-  home.file.".config/herdr".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/herdr";
+  home.file.".config/dictation/dictionary.txt".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/dictation/dictionary.txt";
   home.file.".tmux.conf".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.tmux.conf";
   home.file.".config/gh/config.yml".source =
@@ -227,6 +230,20 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/agents/AGENTS.md";
   home.file.".pi/agent/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/agents/pi/settings.json";
+
+  home.file.".local/bin/dictation-edit-dictionary" = lib.mkIf pkgs.stdenv.isLinux {
+    source = config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/dictation-edit-dictionary";
+  };
+
+  home.file.".local/bin/performance-overlay" = lib.mkIf pkgs.stdenv.isLinux {
+    source = config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/performance-overlay";
+  };
+  home.file.".config/performance-overlay/settings.json" = lib.mkIf pkgs.stdenv.isLinux {
+    source = config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/performance-overlay/settings.json";
+  };
+  home.file.".config/systemd/user/performance-overlay.service" = lib.mkIf pkgs.stdenv.isLinux {
+    source = config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/systemd/user/performance-overlay.service";
+  };
 
   # Standalone Home Manager on non-NixOS Linux can't reach into the systemd
   # user manager's own environment the way it does on real NixOS, so
@@ -289,11 +306,11 @@ in
       fi
 
       $DRY_RUN_CMD mkdir -p "$HOME/whisper-models"
-      if [ ! -f "$HOME/whisper-models/ggml-base.en.bin" ]; then
-        echo "Downloading Whisper base.en model (~150MB)..."
-        $DRY_RUN_CMD ${pkgs.wget}/bin/wget -q -O "$HOME/whisper-models/ggml-base.en.bin.part" \
-          https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
-        $DRY_RUN_CMD mv "$HOME/whisper-models/ggml-base.en.bin.part" "$HOME/whisper-models/ggml-base.en.bin"
+      if [ ! -f "$HOME/whisper-models/ggml-small.bin" ]; then
+        echo "Downloading multilingual Whisper small model (~466MB)..."
+        $DRY_RUN_CMD ${pkgs.wget}/bin/wget -q -O "$HOME/whisper-models/ggml-small.bin.part" \
+          https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin
+        $DRY_RUN_CMD mv "$HOME/whisper-models/ggml-small.bin.part" "$HOME/whisper-models/ggml-small.bin"
       fi
 
       if ! id -nG | tr ' ' '\n' | grep -qx input; then
@@ -320,46 +337,97 @@ in
     Install.WantedBy = [ "default.target" ];
   };
 
-  # Desktop/application-menu launchers for the user service. The start
-  # launcher is also copied to ~/Desktop on Linux so the daemon can be
-  # started without opening a terminal.
+  # Desktop/application-menu launchers for the user service. They are named
+  # with "STT" and include speech/dictation keywords so the start menu can
+  # find them easily. The same actions are copied to ~/Desktop below.
   xdg.desktopEntries = lib.mkIf pkgs.stdenv.isLinux {
-    "whisper-dictation-start" = {
-      name = "Start Whisper Dictation";
+    "stt-start" = {
+      name = "STT - Start Whisper Dictation";
       comment = "Start the local Whisper speech-to-text service";
       exec = "systemctl --user start dictation.service";
       icon = "audio-input-microphone";
       terminal = false;
       categories = [ "AudioVideo" "Audio" ];
+      settings = { Keywords = "STT;speech;speech-to-text;dictation;Whisper;"; };
     };
-    "whisper-dictation-stop" = {
-      name = "Stop Whisper Dictation";
+    "stt-stop" = {
+      name = "STT - Stop Whisper Dictation";
       comment = "Stop the local Whisper speech-to-text service";
       exec = "systemctl --user stop dictation.service";
       icon = "audio-input-microphone";
       terminal = false;
       categories = [ "AudioVideo" "Audio" ];
+      settings = { Keywords = "STT;speech;speech-to-text;dictation;Whisper;"; };
     };
-    "whisper-dictation-restart" = {
-      name = "Restart Whisper Dictation";
+    "stt-restart" = {
+      name = "STT - Restart Whisper Dictation";
       comment = "Restart the local Whisper speech-to-text service";
       exec = "systemctl --user restart dictation.service";
       icon = "audio-input-microphone";
       terminal = false;
       categories = [ "AudioVideo" "Audio" ];
+      settings = { Keywords = "STT;speech;speech-to-text;dictation;Whisper;"; };
+    };
+    "stt-edit-dictionary" = {
+      name = "STT - Edit Speech Dictionary";
+      comment = "Add domain-specific words used by Whisper speech-to-text";
+      exec = "${homeDirectory}/.local/bin/dictation-edit-dictionary";
+      icon = "accessories-text-editor";
+      terminal = true;
+      categories = [ "AudioVideo" "Audio" "Utility" ];
+      settings = { Keywords = "STT;speech;dictionary;vocabulary;Whisper;"; };
     };
   };
 
-  home.file."Desktop/Whisper Dictation.desktop" = lib.mkIf pkgs.stdenv.isLinux {
+  home.file."Desktop/STT - Start Whisper Dictation.desktop" = lib.mkIf pkgs.stdenv.isLinux {
     text = ''
       [Desktop Entry]
       Type=Application
-      Name=Start Whisper Dictation
+      Name=STT - Start Whisper Dictation
       Comment=Start the local Whisper speech-to-text service
       Exec=systemctl --user start dictation.service
       Icon=audio-input-microphone
       Terminal=false
       Categories=AudioVideo;Audio;
+    '';
+    executable = true;
+  };
+  home.file."Desktop/STT - Stop Whisper Dictation.desktop" = lib.mkIf pkgs.stdenv.isLinux {
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=STT - Stop Whisper Dictation
+      Comment=Stop the local Whisper speech-to-text service
+      Exec=systemctl --user stop dictation.service
+      Icon=audio-input-microphone
+      Terminal=false
+      Categories=AudioVideo;Audio;
+    '';
+    executable = true;
+  };
+  home.file."Desktop/STT - Restart Whisper Dictation.desktop" = lib.mkIf pkgs.stdenv.isLinux {
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=STT - Restart Whisper Dictation
+      Comment=Restart the local Whisper speech-to-text service
+      Exec=systemctl --user restart dictation.service
+      Icon=audio-input-microphone
+      Terminal=false
+      Categories=AudioVideo;Audio;
+    '';
+    executable = true;
+  };
+  home.file."Desktop/STT - Edit Speech Dictionary.desktop" = lib.mkIf pkgs.stdenv.isLinux {
+    text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=STT - Edit Speech Dictionary
+      Comment=Add domain-specific words used by Whisper speech-to-text
+      Exec=${homeDirectory}/.local/bin/dictation-edit-dictionary
+      Icon=accessories-text-editor
+      Terminal=true
+      Categories=AudioVideo;Audio;Utility;
     '';
     executable = true;
   };

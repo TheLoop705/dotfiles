@@ -66,7 +66,6 @@
       "gh"
       "git"
       "gradle"
-      "herdr"
       "htop"
       "libomp"
       "mas"

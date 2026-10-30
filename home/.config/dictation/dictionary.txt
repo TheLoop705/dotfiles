@@ -1,0 +1,23 @@
+# Whisper recognition hints: add one word or phrase per line.
+#
+# Keep this list concise. These entries are supplied as context to Whisper at
+# startup, which makes unusual names and domain terms more likely to be
+# transcribed correctly. They do not force a replacement every time.
+#
+# Examples:
+ATTranscribe
+ATCloud
+dictation-daemon
+ATVoice
+ATSpeak
+ATSpeakWeb
+ATSpeakEditor
+Backend
+Frontend
+Cyrus
+Sage
+MobileServer
+MobileClient
+TCP
+Clientpod
+clientpod

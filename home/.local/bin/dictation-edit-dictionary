@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+dictionary="${XDG_CONFIG_HOME:-$HOME/.config}/dictation/dictionary.txt"
+mkdir -p "$(dirname "$dictionary")"
+
+editor="${VISUAL:-${EDITOR:-nvim}}"
+exec "$editor" "$dictionary"

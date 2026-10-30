@@ -1,12 +1,16 @@
 use anyhow::{Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use inotify::{Inotify, WatchMask};
+use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+use whisper_rs::{
+    get_lang_id, get_lang_str, FullParams, SamplingStrategy, WhisperContext,
+    WhisperContextParameters,
+};
 
 /// Minimum milliseconds between hotkey activations to prevent key-repeat spam
 const DEBOUNCE_MS: u64 = 500;
@@ -20,6 +24,57 @@ const MAX_RECORDING_SECS: u64 = 5 * 60;
 const SAMPLE_RATE: u32 = 16000;
 const MAX_BUFFER_SAMPLES: usize = SAMPLE_RATE as usize * MAX_RECORDING_SECS as usize;
 const ICON_SIZE: i32 = 22;
+
+fn dictionary_path() -> PathBuf {
+    if let Ok(path) = std::env::var("DICTATION_DICTIONARY") {
+        return PathBuf::from(path);
+    }
+
+    let config_dir = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config"))
+        })
+        .unwrap_or_else(|| PathBuf::from(".config"));
+
+    config_dir.join("dictation/dictionary.txt")
+}
+
+/// Load one domain-specific word or phrase per line as Whisper's initial
+/// prompt. Comments and blank lines are ignored so the file can explain
+/// itself without affecting recognition.
+fn load_dictionary_prompt() -> String {
+    let path = dictionary_path();
+    let contents = match fs::read_to_string(&path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return String::new(),
+        Err(error) => {
+            eprintln!("Warning: could not read {}: {error}", path.display());
+            return String::new();
+        }
+    };
+
+    let entries: Vec<&str> = contents
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect();
+
+    if entries.is_empty() {
+        return String::new();
+    }
+
+    println!(
+        "Loaded {} dictionary entr{} from {}.",
+        entries.len(),
+        if entries.len() == 1 { "y" } else { "ies" },
+        path.display()
+    );
+    format!(
+        "The following domain-specific words and phrases may appear: {}.",
+        entries.join(", ")
+    )
+}
 
 fn make_circle_icon(r: u8, g: u8, b: u8) -> ksni::Icon {
     let size = ICON_SIZE as usize;
@@ -137,13 +192,14 @@ impl ksni::Tray for DictationTray {
 fn main() -> Result<()> {
     let model_path = std::env::args().nth(1).unwrap_or_else(|| {
         let home = std::env::var("HOME").unwrap_or_default();
-        format!("{home}/whisper-models/ggml-base.en.bin")
+        format!("{home}/whisper-models/ggml-small.bin")
     });
 
     println!("Loading Whisper model from {model_path}...");
     let ctx = WhisperContext::new_with_params(&model_path, WhisperContextParameters::default())
         .context("Failed to load Whisper model")?;
     println!("Model loaded.");
+    let dictionary_prompt = Arc::new(load_dictionary_prompt());
 
     let recording = Arc::new(AtomicBool::new(false));
     let audio_buf: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
@@ -201,11 +257,13 @@ fn main() -> Result<()> {
     // expose 48 kHz stereo, while Whisper expects 16 kHz mono; forcing a
     // 16 kHz mono ALSA stream can result in a stream that starts but never
     // delivers samples on some devices.
+    let audio_failed = Arc::new(AtomicBool::new(false));
     let stream = build_input_stream(
         &device,
         supported_config,
         recording.clone(),
         audio_buf.clone(),
+        audio_failed.clone(),
     )?;
     stream.play().context("Failed to start input stream")?;
 
@@ -237,6 +295,7 @@ fn main() -> Result<()> {
         ctx: Arc::new(ctx),
         last_toggle: Arc::new(AtomicU64::new(0)),
         processing: Arc::new(AtomicBool::new(false)),
+        dictionary_prompt: dictionary_prompt.clone(),
         smart_punctuation: smart_punctuation.clone(),
         pause_media: pause_media.clone(),
         media_was_playing: Arc::new(AtomicBool::new(false)),
@@ -273,6 +332,12 @@ fn main() -> Result<()> {
     // this is what actually processes whatever was captured, so a long
     // dictation that runs past the cap doesn't just silently vanish.
     while !shutdown.load(Ordering::SeqCst) {
+        if audio_failed.load(Ordering::Acquire) {
+            // Drop the broken stream and let systemd reopen the current
+            // default device after its restart delay (e.g. after undocking).
+            release_keys();
+            anyhow::bail!("Audio input failed; restarting capture is required");
+        }
         if state.recording.load(Ordering::Relaxed) {
             let hit_cap = state
                 .audio_buf
@@ -286,6 +351,7 @@ fn main() -> Result<()> {
                     &state.audio_buf,
                     &state.ctx,
                     &state.processing,
+                    state.dictionary_prompt.as_str(),
                     &state.smart_punctuation,
                     &state.pause_media,
                     &state.media_was_playing,
@@ -366,11 +432,18 @@ fn build_input_stream(
     supported_config: cpal::SupportedStreamConfig,
     recording: Arc<AtomicBool>,
     audio_buf: Arc<Mutex<Vec<f32>>>,
+    audio_failed: Arc<AtomicBool>,
 ) -> Result<cpal::Stream> {
     let config = supported_config.config();
     let input_rate = config.sample_rate.0;
     let channels = config.channels;
-    let error_callback = |err| eprintln!("Audio stream error: {err}");
+    let error_callback = move |err| {
+        // Some ALSA failures invoke this callback in a tight loop. Signal
+        // the main thread and log once instead of flooding the journal.
+        if !audio_failed.swap(true, Ordering::AcqRel) {
+            eprintln!("Audio stream error: {err}");
+        }
+    };
 
     match supported_config.sample_format() {
         cpal::SampleFormat::F32 => {
@@ -540,6 +613,7 @@ struct HotkeyState {
     ctx: Arc<WhisperContext>,
     last_toggle: Arc<AtomicU64>,
     processing: Arc<AtomicBool>,
+    dictionary_prompt: Arc<String>,
     smart_punctuation: Arc<AtomicBool>,
     pause_media: Arc<AtomicBool>,
     media_was_playing: Arc<AtomicBool>,
@@ -597,6 +671,7 @@ fn spawn_keyboard_listener(path: PathBuf, mut device: evdev::Device, state: Hotk
                         &state.audio_buf,
                         &state.ctx,
                         &state.processing,
+                        state.dictionary_prompt.as_str(),
                         &state.smart_punctuation,
                         &state.pause_media,
                         &state.media_was_playing,
@@ -680,6 +755,7 @@ fn toggle_dictation(
     audio_buf: &Mutex<Vec<f32>>,
     ctx: &WhisperContext,
     processing: &AtomicBool,
+    dictionary_prompt: &str,
     smart_punctuation: &AtomicBool,
     pause_media: &AtomicBool,
     media_was_playing: &AtomicBool,
@@ -706,14 +782,54 @@ fn toggle_dictation(
             return;
         }
 
+        // Whisper can occasionally classify a very short German phrase as a
+        // neighboring language (for example Danish). Keep its normal result
+        // when it chooses German or English, but constrain ambiguous results
+        // to the two languages this dictation service is meant to preserve.
+        let detected_language = {
+            let mut detect_state = ctx.create_state().expect("Failed to create Whisper state");
+            match detect_state.pcm_to_mel(&samples, 4) {
+                Ok(()) => match detect_state.lang_detect(0, 4) {
+                    Ok((detected_id, probabilities)) => {
+                        let de_probability = get_lang_id("de")
+                            .and_then(|id| probabilities.get(id as usize).copied())
+                            .unwrap_or(0.0);
+                        let en_probability = get_lang_id("en")
+                            .and_then(|id| probabilities.get(id as usize).copied())
+                            .unwrap_or(0.0);
+                        let detected = get_lang_str(detected_id).unwrap_or("unknown");
+                        let selected = match detected {
+                            "de" => "de",
+                            "en" => "en",
+                            _ if de_probability >= en_probability => "de",
+                            _ => "en",
+                        };
+                        println!(
+                            "Language detection: {detected} (de={de_probability:.3}, en={en_probability:.3}); using {selected}."
+                        );
+                        Some(selected)
+                    }
+                    Err(_) => None,
+                },
+                Err(_) => None,
+            }
+        };
+
         let mut state = ctx.create_state().expect("Failed to create Whisper state");
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_n_threads(4);
-        params.set_language(Some("en"));
+        params.set_language(detected_language);
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
         params.set_suppress_nst(true);
+        let language_prompt = "German and English speech. Preserve the spoken language exactly; do not translate.";
+        let initial_prompt = if dictionary_prompt.is_empty() {
+            language_prompt.to_string()
+        } else {
+            format!("{language_prompt} {dictionary_prompt}")
+        };
+        params.set_initial_prompt(&initial_prompt);
 
         state
             .full(params, &samples)
@@ -1100,6 +1216,39 @@ fn compensate_for_us_keycode_assumption(text: &str) -> String {
 }
 
 fn inject_text(text: &str) {
+    // wtype can inject Unicode directly through Wayland. Prefer it whenever
+    // Whisper produced non-ASCII text so German characters such as ä/ö/ü/ß
+    // are not passed through ydotool's US-keyboard mapping.
+    if !text.is_ascii() {
+        match Command::new("wtype").arg(text).status() {
+            Ok(status) if status.success() => {
+                println!("Text injected via wtype.");
+                return;
+            }
+            Ok(status) => eprintln!("wtype exited unsuccessfully: {status}"),
+            Err(error) => eprintln!("wtype unavailable: {error}"),
+        }
+
+        if let Ok(mut clipboard) = Command::new("wl-copy")
+            .args(["--paste-once", "--foreground", "--", text])
+            .spawn()
+        {
+            let pasted = Command::new("ydotool")
+                .args(["key", "29:1", "47:1", "47:0", "29:0"])
+                .status()
+                .map(|status| status.success())
+                .unwrap_or(false);
+            if pasted {
+                let _ = clipboard.wait();
+                println!("Text injected via clipboard paste.");
+                return;
+            }
+            let _ = clipboard.kill();
+            let _ = clipboard.wait();
+            eprintln!("Clipboard paste injection failed; trying ydotool text mapping.");
+        }
+    }
+
     let for_ydotool = compensate_for_us_keycode_assumption(text);
     match Command::new("ydotool")
         .args(["type", "--", &for_ydotool])

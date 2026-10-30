@@ -21,6 +21,17 @@ never route through XWayland, so the hotkey silently didn't fire there. Reading
 `/dev/input` directly sees every keystroke at the kernel level regardless of
 what has focus or which display protocol it uses.
 
+## Language detection
+
+The daemon uses the multilingual `ggml-small.bin` model and detects between
+German and English. Do not substitute the English-only `*.en.bin` model if
+German or mixed-language dictation is required.
+
+Automatic detection works best for short recordings whose opening speech is
+clear. Switching languages inside one long recording is supported on a
+best-effort basis, but separate short hotkey recordings give Whisper a better
+chance to choose the right language for each one.
+
 ## Requirement this doesn't solve
 
 Reading `/dev/input/event*` and writing to `/dev/uinput` (for `ydotool` text

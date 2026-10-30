@@ -1,0 +1,9 @@
+{
+  "threshold": 90,
+  "always_visible": false,
+  "temperature_thresholds_c": {
+    "cpu": 90,
+    "gpu": 85,
+    "ram": 85
+  }
+}

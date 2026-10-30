@@ -12,7 +12,6 @@ This repo is based on the structure of `kunchenguid/dotfiles`, adapted for `TheL
 - WezTerm config, with macOS-only blur guarded so the file also works on Linux
 - Windows-native local Whisper dictation (multilingual `small` model) through
   the WSL/Windows setup
-- herdr config
 - shared agent instructions for Claude, Codex, and opencode
 - safe shared Claude settings/status line; machine-specific provider settings stay local
 - gh config and global git ignore
@@ -198,8 +197,7 @@ For example, if an existing zsh config was in the way, look for `~/.zshrc.hm-bac
 
 - Ubuntu does not use `configuration.nix`; that file is macOS-only.
 - Homebrew packages and casks are macOS-only.
-- WezTerm config is linked on Ubuntu, but the WezTerm app itself is not installed by this repo on Ubuntu yet.
-  Install WezTerm separately if you want to use it as the local laptop terminal.
+- WezTerm and its config are installed through Home Manager on Ubuntu.
 - If you only SSH into the Mac mini from the Ubuntu laptop, the Ubuntu terminal app does not matter much; tmux, zsh, nvim, and the other commands run on the remote Mac.
 
 ## Validate without applying
@@ -229,7 +227,7 @@ homebrew.onActivation.cleanup = "zap";
 On macOS, every switch removes Homebrew packages and casks that are not listed in `configuration.nix`.
 This keeps the Mac reproducible, but it means any new manual `brew install` should be added to `configuration.nix` before the next `./rebuild.sh`.
 
-The initial list was seeded from the current Mac mini Homebrew setup and then extended with upstream workflow tools such as `herdr`, `wezterm`, and `claude-code`.
+The initial list was seeded from the current Mac mini Homebrew setup and then extended with upstream workflow tools such as `wezterm` and `claude-code`.
 
 This headless Mac manages Tailscale as the `tailscale` Homebrew formula.
 The `tailscale-app` cask is not managed because its package installer requires macOS system-extension approval through the GUI and fails in a headless rebuild.
@@ -240,7 +238,6 @@ Home Manager uses out-of-store symlinks for config directories:
 
 - `~/.config/nvim` -> `home/.config/nvim`
 - `~/.config/wezterm` -> `home/.config/wezterm`
-- `~/.config/herdr` -> `home/.config/herdr`
 - `~/.config/gh/config.yml` -> `home/.config/gh/config.yml`
 - `~/.config/git/ignore` -> `home/.config/git/ignore`
 - `~/.claude/settings.json` -> `home/.claude/settings.json`
@@ -251,6 +248,63 @@ Home Manager uses out-of-store symlinks for config directories:
 
 Editing files under `home/` changes the live config after the symlink is installed.
 Run `./rebuild.sh` when changing Nix package lists, system settings, or Home Manager declarations.
+
+## Remote access
+
+The first Ubuntu setup needs the root-level services that Home Manager cannot
+own:
+
+```sh
+./setup-ubuntu-remote.sh
+./rebuild.sh
+```
+
+The Ubuntu script installs Tailscale from its official apt repository, enables
+Tailscale SSH, and enables systemd user lingering for persistent user services.
+Tailscale login state and keys stay local and are never stored in this
+repository.
+
+For iPhone access, install Tailscale and an SSH client on the phone, join the
+same tailnet, and SSH to the laptop's MagicDNS name. Interactive SSH logins
+automatically attach to the persistent `main` tmux session.
+The phone and laptop do not need to be on the same physical network.
+
+## CPU/GPU performance overlay (Ubuntu GNOME)
+
+`performance-overlay.service` runs a click-through window at the top right of
+the primary monitor, above application windows. It shows green CPU, Intel GPU,
+and NVIDIA GPU percentages when any reading exceeds 90%, and hides otherwise.
+Settings in `home/.config/performance-overlay/settings.json` are reloaded every
+two seconds; set `always_visible` to `true` for continuous display (white below
+the threshold, green above it).
+
+High temperatures also trigger the overlay, independently of usage. A red second
+line shows only temperatures at or above the configured alert thresholds:
+CPU 90°C, GPU 85°C, and RAM 85°C. These are early warning settings, not claims
+about manufacturer critical limits. Edit `temperature_thresholds_c` to change
+them. CPU uses the package sensor; RAM uses Dell's Memory sensor (the memory
+area, not individual chips). GPU uses NVIDIA's temperature when available and
+Dell's Video sensor otherwise. Missing sensor readings do not trigger alerts.
+
+The service uses system Python 3, `python3-gi`, `gir1.2-gtk-3.0`, and GNOME's
+XWayland support. CPU is total machine utilization, not per-core utilization.
+Intel GPU usage is the busiest engine's utilization from this user's DRM client
+counters; NVIDIA uses `nvidia-smi`, skipping queries while the GPU is suspended.
+Collector work runs outside the UI thread. Live readings are available at
+`$XDG_RUNTIME_DIR/performance-overlay.json`.
+
+After Home Manager links the files, enable startup at desktop login with:
+
+```sh
+systemctl --user daemon-reload
+systemctl --user enable --now performance-overlay.service
+```
+
+It restarts automatically after exit or failure. To stop and disable it:
+
+```sh
+systemctl --user disable --now performance-overlay.service
+```
 
 ## Whisper dictation daemon
 
@@ -266,7 +320,9 @@ installs it to `~/.local/bin/dictation` automatically on every
 `./rebuild.sh`, skipping the build if the vendored source hasn't changed.
 `systemd.user.services.dictation` runs it (`After=graphical-session.target`,
 restarts on failure). It also fetches the Whisper model
-(`~/whisper-models/ggml-base.en.bin`, ~150MB) on first run if missing.
+(`~/whisper-models/ggml-small.bin`, the multilingual ~466MB model) on first
+run if missing. The daemon detects between German and English instead of
+translating or forcing everything into English.
 
 ### Starting and stopping it
 
@@ -279,7 +335,30 @@ systemctl --user status dictation.service
 
 Home Manager also provides these zsh aliases: `stt` (status), `stt-start`,
 `stt-stop`, `stt-restart`, and `stt-logs`. After a rebuild, **Start Whisper
-Dictation** is available in the application menu and on the Linux desktop.
+Dictation**, **Stop Whisper Dictation**, and **Restart Whisper Dictation** are
+available in the application menu and on the Linux desktop.
+
+### Editing the recognition dictionary
+
+The Linux daemon reads
+[`home/.config/dictation/dictionary.txt`](home/.config/dictation/dictionary.txt)
+when it starts. Add one unusual word or phrase per line; blank lines and lines
+beginning with `#` are ignored. The file is linked to
+`~/.config/dictation/dictionary.txt`, so it can be edited either in the repo or
+with **STT - Edit Speech Dictionary** from the application menu/desktop.
+
+These entries are passed to Whisper as an initial recognition prompt. They
+make domain-specific vocabulary more likely to be recognized, but they are
+context rather than forced replacements. Keep the list short and restart the
+service with **STT - Restart Whisper Dictation** after editing so the daemon
+reloads it. The daemon also accepts `DICTATION_DICTIONARY=/path/to/file` when a
+machine needs a dictionary outside the repo.
+
+The multilingual model can transcribe German and English, and auto-detection
+tries to preserve short mixed-language dictation. For the most reliable
+language switching, keep each hotkey recording to one short thought; Whisper's
+automatic language detection is strongest when the recording starts clearly in
+the language being spoken.
 
 Three things Nix deliberately doesn't provide for this build, and why (full
 reasoning is in `home.nix`'s comment on the dictation-daemon package list):
